@@ -1,0 +1,35 @@
+{
+     "environments": {
+        "test": {
+            "provider": "local", 
+            "configuration": {
+                "AUTHENTICATE": {
+                    "serviceName": "AuthenticationService",
+                    "function": "authenticate",                   
+                    "security": ["ROLE_ANONYMOUS"]                    
+                }, 
+                "TEST": {
+                    "serviceName": "TestService",
+                    "function": "test",                   
+                    "security": ["TEST"]                    
+                }, 
+                "TEST_ANONYMOUS": {
+                    "serviceName": "TestService",
+                    "function": "test",                   
+                    "security": ["ROLE_ANONYMOUS"]                    
+                },
+                "TEST_REJECTION": {
+                    "serviceName": "TestService",
+                    "function": "test",                   
+                    "security": ["TEST_REJECT"]                    
+                }, 
+                "TEST_LAMBDA": {
+                    "serviceName": "TestService", 
+                    "function": "test", 
+                    "security": ["ROLE_ANONYMOUS"], 
+                    "provider": "aws:lambda"
+                }
+            }
+        }
+     }
+}
