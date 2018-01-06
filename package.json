@@ -1,6 +1,6 @@
 {
   "name": "@source4society/SCEPTER-GatewayService",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Gateway for invoking functions over http",
   "main": "handler.js",
   "repository": "git@github.com:source4societyorg/SCEPTER-GatewayService",
@@ -8,7 +8,7 @@
   "license": "AGPL-3.0",
   "private": false,
   "scripts": {
-    "test": "eslint *.js && jest --coverage",
+    "test": "eslint ./**/*.js --ignore-path .gitignore && jest --coverage",
     "sls": "sls"
   },
   "dependencies": {
