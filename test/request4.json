@@ -1,4 +1,0 @@
-{
-  "headers": {"Authorization": "Bearer: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwYXNzd29yZEhhc2giOiIkMmEkMDgkb3Bsa28yZW9FQTFLNTZZa2lkQzJ6LkRReHI0YnFjR201V3dIcHh4MW0va3J1Li9UVFhFLjYiLCJ1c2VybmFtZSI6Im5yYWNhZG1pbiIsInJvbGVzIjpbIk5SQUNfQURNSU4iXSwidXNlcklkIjoiMzRjMmJkZDItYTg2My00NDg5LTkyNzQtZmY4Y2JkYjkxZGM2IiwiaWF0IjoxNTE0MzI4NzYwLCJleHAiOjE1MTY5MjA3NjB9.5vLL5vXKIVuE6f08q8sl7w3k8sGHwrAeZOrC1gpDDp4"},
-  "body": "{\"type\": \"ADMIN_RECORD_UPDATE\", \"payload\": {\"recordType\":\"department-tag\", \"tagName\": \"test\"}}"
-}

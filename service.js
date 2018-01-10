@@ -1,6 +1,7 @@
 'use strict'
 
 class GatewayService {
+
   constructor (stage = 'dev', credentialsPath = './credentials.json', servicesPath = './services.json') {
     const { spawn } = require('child_process')
     const jsonwebtoken = require('jsonwebtoken')
@@ -11,19 +12,32 @@ class GatewayService {
     this.spawn = spawn
     this.jsonwebtoken = jsonwebtoken
     this.AWS = AWS
+    this.utilities = require('@source4society/scepter-utility-lib')
+    this.account = this.credentials.environments[this.stage].configuration.account || ''
+    this.region = this.credentials.environments[this.stage].configuration.region || ''
+  
+    this.defaultHeaders = {
+      'Access-Control-Allow-Origin': '*', // Required for CORS support to work
+      'Access-Control-Allow-Credentials': true // Required for cookies, authorization headers with HTTPS
+    }       
+
+    this.response = {
+      headers: this.defaultHeaders,
+      isBase64Encoded: false
+    }
   }
 
-  authorize (authCallback, event, jwt) {
+  authorize (event, jwt, authCallback) {
     const eventType = event.type
     const keySecret = this.credentials.environments[this.stage].jwtKeySecret
     const security = this.getRoleAccess(eventType)
-    let userData = null
+    let userAuthData = true
     let userRoles = []
-    if (jwt !== null && typeof jwt !== 'undefined' && jwt !== '') {
+    if (!this.utilities.isEmpty(jwt)) {
       try {
-        this.jsonwebtoken.verify(jwt, keySecret)
-        userData = this.jsonwebtoken.decode(jwt)
-        userRoles = userData.roles
+        this.jsonwebtoken.verify(jwt, keySecret)                 
+        userAuthData = this.jsonwebtoken.decode(jwt)
+        userRoles = userAuthData.roles
       } catch (err) {
         authCallback({message: err.message, code: 403})
         return
@@ -31,29 +45,29 @@ class GatewayService {
     }
 
     if ((security.indexOf('ROLE_ANONYMOUS') > -1) || security.some((value) => userRoles.indexOf(value) > -1)) {
-      authCallback(null, true)
+      authCallback(null, userAuthData)
     } else {
       authCallback({message: 'Access denied', code: 403}, null)
     }
   }
 
-  proxy (event, proxyCallback) {
+  proxy (event, userData, proxyCallback) {
     const eventType = event.type
-    const payload = event.payload
     const provider = this.services.environments[this.stage].configuration[eventType].provider || this.services.environments[this.stage].provider
     const serviceName = this.services.environments[this.stage].configuration[eventType].serviceName
     const folder = '../' + serviceName
     const func = this.services.environments[this.stage].configuration[eventType].function
     const shell = this.services.environments[this.stage].configuration[eventType].shell || '/bin/bash'
-    const account = this.credentials.environments[this.stage].configuration.account || ''
-    const region = this.credentials.environments[this.stage].configuration.region || ''
+    let payload = event.payload
+
+    payload.authenticatedUserData = userData
 
     switch (provider) {
       case 'local':
         this.invokeLocalFunction(proxyCallback, payload, func, folder, shell)
         break
       case 'aws:lambda':
-        this.invokeLambda(proxyCallback, payload, func, serviceName, account, region)
+        this.invokeLambda(proxyCallback, payload, func, serviceName, this.account, this.region)
         break
     }
   }
@@ -63,7 +77,7 @@ class GatewayService {
     lambda.invoke({
       FunctionName: account + ':' + serviceName + '-' + this.stage + '-' + func,
       Payload: JSON.stringify(payload, null, 2)
-    }, (err, data) => this.functionInvocationCallback(err, typeof data !== 'undefined' && data !== null ? data.Payload || null : null, proxyCallback, true))
+    }, (err, data) => this.functionInvocationCallback(err, !this.utilities.isEmpty(data) ? data.Payload || null : null, proxyCallback, true))
   }
 
   invokeLocalFunction (proxyCallback, payload, func, folder, shell) {
@@ -78,10 +92,10 @@ class GatewayService {
 
   functionInvocationCallback (err, data, proxyCallback, parse = false) {
     const result = typeof data === 'string' ? JSON.parse(data.toString('utf8')) : data
-    if ((typeof err !== 'undefined' && err !== null) || result.status !== true) {
-      proxyCallback(err || result.errors)
-    } else {
+    if ((this.utilities.isEmpty(err)) && ( !this.utilities.isEmpty(result) && result.status === true)) {
       proxyCallback(null, result)
+    } else {
+      proxyCallback(this.utilities.isEmpty(result) ? err : result.errors)
     }
   }
 
@@ -89,6 +103,66 @@ class GatewayService {
     return typeof this.services.environments[this.stage].configuration[eventType] !== 'undefined'
       ? this.services.environments[this.stage].configuration[eventType].security || [] : []
   }
+
+  extractErrorCodeFromResponse (error, defaultCode = 500) {
+    let statusCode = defaultCode
+    if (!this.utilities.isEmpty(error) && (!this.utilities.isEmpty(error.code) || !this.utilities.isEmpty(error.errors))) {
+      if (!this.utilities.isEmpty(error.code)) {
+        statusCode = error.code
+      } else if (!this.utilities.isEmpty(error.errors.code)) {      
+        statusCode = error.errors.code
+      }
+    }
+
+    if (isNaN(statusCode)) {
+      statusCode = defaultCode
+    }
+    return statusCode
+  }
+
+  extractErrorMessageFromResponse (error, defaultMessage = 'Unexpected Error.') {
+    let errorMessage = !this.utilities.isEmpty(error) && (!this.utilities.isEmpty(error.message) || !this.utilities.isEmpty(error.errors))
+      ? error.message || error.errors.message : typeof error === 'string' ? error : defaultMessage
+    return errorMessage
+  }
+
+  extractAuthenticationToken(headers) {
+    return typeof headers !== 'undefined' ? headers.Authorization || headers : headers
+  }
+
+  extractJwt(authorization) {
+    return this.utilities.isEmpty(authorization) ? null : authorization.split(': ')[1]
+  }
+
+  prepareErrorResponse (error) {
+    const code = this.extractErrorCodeFromResponse(error)
+    const message = this.extractErrorMessageFromResponse(error)
+    this.response.statusCode = code
+    this.response.body = JSON.stringify({
+      status: false,
+      errors: {code: code, message: message}
+    })
+    return this.response
+  }
+
+  prepareSuccessResponse (data) {
+    this.response.statusCode = 200
+    this.response.body = JSON.stringify(data)
+    return this.response
+  }
+
+  prepareAccessDeniedResponse () {
+    this.response.statusCode = 403
+    this.response.body = JSON.stringify({
+      status: false,
+      errors: {
+        code: 403,
+        message: 'Access denied'
+      }
+    })
+    return this.response
+  }
+
 };
 
 module.exports = GatewayService
