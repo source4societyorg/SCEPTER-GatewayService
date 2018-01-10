@@ -21,7 +21,6 @@ provider:
 functions:
   proxy:
     handler: handler.proxy
-
     events:
       - http:
             path: /         

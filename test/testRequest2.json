@@ -1,0 +1,6 @@
+{
+  "headers": {
+    "Authorization":"Bearer: "
+  },
+  "body": "{\"type\":\"TEST\", \"payload\":{}}"
+}

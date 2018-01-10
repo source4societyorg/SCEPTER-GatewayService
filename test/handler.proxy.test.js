@@ -1,95 +1,57 @@
-process.env.CREDENTIALS_PATH = './test/credentials.json'
-process.env.SERVICES_PATH = './test/services.json'
-const handler = require('../handler')
+const handler = require('../handler.proxy')
 
-test('Handler will respond with success response on proper authentication', (done) => {
-  // mock the service class
-  const result = {status: true, result: {message: 'Things worked out'}}
-  const mockAuthorize = (authCallback, event, jwt) => authCallback(null, true)
-  const mockProxy = (event, proxyCallback) => proxyCallback(null, result)
-  const callback = (err, data) => {
-    expect(err).toBeNull()
-    expect(data.statusCode).toBe(200)
-    expect(data.body).toEqual(JSON.stringify(result))
-    done()
+test('proxy handler will invoke the service by extracting an authentication token and then passing it to the services authorization function', (done) => {
+  process.env.environment = 'test'
+  process.env.CREDENTIALS_PATH = './test/credentials.json'
+  process.env.SERVICES_PATH = './test/services.json'
+
+  const testRequest = require('./testRequest.json')
+  const mockServiceFunction = () => 'mockresult'
+  const mockService = {
+    authorize: () => done(),
+    extractAuthenticationToken: mockServiceFunction,
+    extractJwt: mockServiceFunction
   }
-
-  global.service = {
-    authorize: mockAuthorize,
-    proxy: mockProxy
-  }
-
-  handler.proxy({body: JSON.stringify({type: 'TEST_ANONYMOUS', payload: {}})}, null, callback)
+  const mockServiceConstructor = () => mockService
+  handler.proxy(testRequest, null, null, mockServiceConstructor)
 })
 
-test('Handler will respond with 403 code when authorization failed', (done) => {
-  // mock the service class
-  const result = {status: false, errors: {code: 403, message: 'Access denied'}}
-  const mockAuthorize = (authCallback, event, jwt) => authCallback(null, false)
-  const mockProxy = (event, proxyCallback) => proxyCallback(null, result)
-  const callback = (err, data) => {
-    expect(err).toBeNull()
-    expect(data.statusCode).toBe(403)
-    expect(data.body).toEqual(JSON.stringify(result))
-    done()
-  }
-
-  global.service = {
-    authorize: mockAuthorize,
-    proxy: mockProxy
-  }
-
-  handler.proxy({body: JSON.stringify({type: 'TEST_ANONYMOUS', payload: {}})}, null, callback)
+test('make authorization callback will produce a callback capable of calling the service.proxy function on success, return an access denied response on error', (done) => {
+  let proxyServiceWasCalledSuccessfully = false
+  const mockEvent = { type: 'MOCK_EVENT', payload: {} }
+  const mockService = { proxy: () => { proxyServiceWasCalledSuccessfully = true } }
+  const mockAccessDeniedResponse = () => { expect(proxyServiceWasCalledSuccessfully).toBe(true); done() }
+  const makeAuthCallback = handler.getMakeAuthCallback(mockService, mockAccessDeniedResponse)
+  const authCallback = makeAuthCallback(mockEvent)
+  authCallback(true)
+  authCallback(false)
 })
 
-test('Handler will respond with access denied response when proxy returns error', (done) => {
-  // mock the service class
-  const result = {status: false, errors: {code: 403, message: 'Access denied'}}
-  const mockAuthorize = (authCallback, event, jwt) => authCallback(null, true)
-  const mockProxy = (event, proxyCallback) => proxyCallback(result, null)
-  const callback = (err, data) => {
-    expect(err).toBeNull()
-    expect(data.statusCode).toBe(403)
-    expect(data.body).toEqual(JSON.stringify(result))
-    done()
+test('proxy handler will catch errors and redirect to the injected error handler', (done) => {
+  process.env.environment = 'test'
+  process.env.CREDENTIALS_PATH = './test/credentials.json'
+  process.env.SERVICES_PATH = './test/services.json'
+  const testRequest = require('./testRequest.json')
+  const mockGetDependency = () => () => true
+  const mockGetErrorHandlerDependency = () => (error) => { expect(error.message).toEqual('test error'); done() }
+  const mockService = {
+    extractAuthenticationToken: () => { throw new Error('test error') }
   }
-
-  global.service = {
-    authorize: mockAuthorize,
-    proxy: mockProxy
-  }
-
-  handler.proxy({body: JSON.stringify({type: 'TEST_ANONYMOUS', payload: {}})}, null, callback)
+  const mockServiceConstructor = () => mockService
+  handler.proxy(testRequest, null, null, mockServiceConstructor, undefined, undefined, undefined, mockGetDependency, mockGetDependency, mockGetErrorHandlerDependency)
 })
 
-test('Handler will respond with error code and response when authorization throws an error', (done) => {
-  // mock the service class
-  const mockAuthorize = (authCallback, event, jwt) => { throw new Error('some error') }
-  const callback = (err, data) => {
+test('proxy handler returns valid response on success with valid input', (done) => {
+  process.env.environment = 'test'
+  process.env.CREDENTIALS_PATH = './test/credentials.json'
+  process.env.SERVICES_PATH = './test/services.json'
+
+  const mockCallback = (err, data) => {
     expect(err).toBeNull()
-    expect(data.statusCode).toBe(500)
+    expect(data).not.toBeUndefined()
     done()
   }
 
-  global.service = {
-    authorize: mockAuthorize
-  }
-
-  handler.proxy({body: JSON.stringify({type: 'TEST_ANONYMOUS', payload: {}})}, null, callback)
-})
-
-test('Handler will respond with error code and response when authorization returns an error', (done) => {
-  // mock the service class
-  const mockAuthorize = (authCallback, event, jwt) => authCallback({code: 500, message: 'Some error'})
-  const callback = (err, data) => {
-    expect(err).toBeNull()
-    expect(data.statusCode).toBe(500)
-    done()
-  }
-
-  global.service = {
-    authorize: mockAuthorize
-  }
-
-  handler.proxy({body: JSON.stringify({type: 'TEST_ANONYMOUS', payload: {}})}, null, callback)
+  const testRequest = require('./testRequest.json')
+  handler.proxy(testRequest, null, mockCallback)
 })
