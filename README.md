@@ -17,11 +17,15 @@ This will clone the service into your services folder as a submodule, and run `y
 
 Alternatively if you are running this as a standalone service, you can simply `git clone` this repository or it's fork, and setup the configuration files locally.
 
+If you are running the commands via powershell, be sure to install the windows-build-tools with the following command:
+
+    npm install --global --production windows-build-tools
+
 ## Configuration
 
-The repository comes with `./credentials.json` and `services.json` simlinked to their respective files in `../../config/` by default. If you are using [SCEPTER](https://www.github.com/source4societyorg/SCEPTER-core) then those files are likely already present. If you are using this service as a standalone service, then you can replace those simlinks with their appropriate files. 
+If you are using [SCEPTER](https://www.github.com/source4societyorg/SCEPTER-core) then you should create simlinks to `./credentials.json` and `services.json` to their places in your projects `/config/` directory. If you are using this service as a standalone service, then you can replace those simlinks with the files themselves. 
 
-Currently the library only supports the `aws` provider, but we hope to support others in the future.
+The `serverless.yml` is not checked in to this repository as the `config/serverless_template_aws.yml` and `config/serverless_template_azure.yml` files will replace the `serverless.yml` file when using SCEPTER commands such as `service:deploy` and `service:invoke` [Read More about these commands](https://github.com/source4societyorg/SCEPTER-command-service). If you are not using SCEPTER, pick a provider template and copy that to `serverless.yml`. Most likely you will want to fork the repository and ensure that the file is committed.
 
 To setup the `credentials.json` you can use the following boilerplate (just prefill your credentials):
 
@@ -89,7 +93,7 @@ For local invocation, the serviceName should correspond to the folder within the
 
 ## Deployment
 
-See [Serverless.com](https://www.serverles.com) for information on how to deploy services to various cloud providers. 
+See [Serverless.com](https://www.serverles.com) and [SCEPTER-command-service](https://github.com/source4societyorg/SCEPTER-command-service) for information on how to deploy services to various cloud providers. 
 
 ## Example
 
