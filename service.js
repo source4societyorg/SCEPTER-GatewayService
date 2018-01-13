@@ -13,8 +13,8 @@ class GatewayService {
     this.jsonwebtoken = jsonwebtoken
     this.AWS = AWS
     this.utilities = require('@source4society/scepter-utility-lib')
-    this.account = this.credentials.environments[this.stage].configuration.account || ''
-    this.region = this.credentials.environments[this.stage].configuration.region || ''
+    this.account = this.credentials.environments[this.stage].provider.account || ''
+    this.region = this.credentials.environments[this.stage].provider.region || ''
   
     this.defaultHeaders = {
       'Access-Control-Allow-Origin': '*', // Required for CORS support to work
@@ -66,10 +66,24 @@ class GatewayService {
       case 'local':
         this.invokeLocalFunction(proxyCallback, payload, func, folder, shell)
         break
+      case 'azure:http':
+        this.invokeAzureHttp(proxyCallback, payload, func, serviceName, account)
+        break
       case 'aws:lambda':
         this.invokeLambda(proxyCallback, payload, func, serviceName, this.account, this.region)
         break
     }
+  }
+
+  invokeViaAzureHttp (proxyCallback, payload, func, serviceName, account) {
+     const request = require('request')
+     request({
+       url: func,
+       json: true,
+       body: payload
+     },
+     (error, response, body) => this.functionInvocationCallback(error, !this.utilities.isEmpty(body) ? body || null : null, proxyCallback, true))
+    )     
   }
 
   invokeLambda (proxyCallback, payload, func, serviceName, account, region) {

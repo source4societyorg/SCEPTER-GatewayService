@@ -1,6 +1,6 @@
-const handler = require('../handler.proxy')
+const handler = require('../handler.proxyRequest')
 
-test('proxy handler will invoke the service by extracting an authentication token and then passing it to the services authorization function', (done) => {
+test('proxyRequest handler will invoke the service by extracting an authentication token and then passing it to the services authorization function', (done) => {
   process.env.environment = 'test'
   process.env.CREDENTIALS_PATH = './test/credentials.json'
   process.env.SERVICES_PATH = './test/services.json'
@@ -13,7 +13,7 @@ test('proxy handler will invoke the service by extracting an authentication toke
     extractJwt: mockServiceFunction
   }
   const mockServiceConstructor = () => mockService
-  handler.proxy(testRequest, null, null, mockServiceConstructor)
+  handler.proxyRequest(testRequest, null, null, mockServiceConstructor)
 })
 
 test('make authorization callback will produce a callback capable of calling the service.proxy function on success, return an access denied response on error', (done) => {
@@ -27,7 +27,7 @@ test('make authorization callback will produce a callback capable of calling the
   authCallback(false)
 })
 
-test('proxy handler will catch errors and redirect to the injected error handler', (done) => {
+test('proxyRequest handler will catch errors and redirect to the injected error handler', (done) => {
   process.env.environment = 'test'
   process.env.CREDENTIALS_PATH = './test/credentials.json'
   process.env.SERVICES_PATH = './test/services.json'
@@ -38,10 +38,10 @@ test('proxy handler will catch errors and redirect to the injected error handler
     extractAuthenticationToken: () => { throw new Error('test error') }
   }
   const mockServiceConstructor = () => mockService
-  handler.proxy(testRequest, null, null, mockServiceConstructor, undefined, undefined, undefined, mockGetDependency, mockGetDependency, mockGetErrorHandlerDependency)
+  handler.proxyRequest(testRequest, null, null, mockServiceConstructor, undefined, undefined, undefined, mockGetDependency, mockGetDependency, mockGetErrorHandlerDependency)
 })
 
-test('proxy handler returns valid response on success with valid input', (done) => {
+test('proxyRequest handler returns valid response on success with valid input', (done) => {
   process.env.environment = 'test'
   process.env.CREDENTIALS_PATH = './test/credentials.json'
   process.env.SERVICES_PATH = './test/services.json'
@@ -53,5 +53,5 @@ test('proxy handler returns valid response on success with valid input', (done) 
   }
 
   const testRequest = require('./testRequest.json')
-  handler.proxy(testRequest, null, mockCallback)
+  handler.proxyRequest(testRequest, null, mockCallback)
 })
