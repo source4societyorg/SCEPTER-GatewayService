@@ -1,0 +1,40 @@
+service: ${file(./parameters.json):appName}-GatewayService
+provider:
+  name: aws
+  runtime: nodejs6.10
+  stage: ${opt:stage, 'dev'}
+  environment:
+    STAGE: ${self:provider.stage}
+    SLS_DEBUG: "*"
+    PROVIDER: 'aws'
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - lambda:InvokeFunction
+        - lambda:InvokeAsync
+      Resource: "*"
+functions:
+  proxy:
+    handler: handler.proxy
+    events:
+      - http:
+            path: /         
+            method: post                                      
+            cors:
+              origin: '*'
+              headers:
+                - Content-Type
+                - X-Amz-Date
+                - Authorization
+                - X-Api-Key
+                - X-Amz-Security-Token
+                - X-Amz-User-Agent 
+package:
+  exclude: 
+    - 'test/**'
+    - 'coverage/**'
+    - 'LICENSE'
+    - 'README.md'
+    - '.travis.yml'
+    - 'docs/**'
+    - 'handler_azure.js'

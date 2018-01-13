@@ -35,8 +35,8 @@ const proxy = (
   // Execute service call
   try { 
     const authorization = service.extractAuthenticationToken(event.headers),
-      jwt = service.extractJwt(authorization),
-      emittedEvent = JSON.parse(event.body)
+    jwt = service.extractJwt(authorization),
+    emittedEvent = JSON.parse(event.body)
     service.authorize(emittedEvent, jwt, (err, data) => callbackHandler(err, data, errorHandler, makeAuthCallback(emittedEvent)))
   } catch (error) {
     errorHandler(error)

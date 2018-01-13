@@ -2,13 +2,14 @@ service: ${file(./parameters.json):appName}-GatewayService-${opt:stage, 'dev'}
 provider:
   name: azure
   location: ${opt:location, 'West US'}
-
+  environment:
+    PROVIDER: 'azure'
 plugins: 
   - serverless-azure-functions
 
 functions:
   proxy:
-    handler: handler_${self:provider.name}.proxy
+    handler: handler.proxy
     events:
       - http: true,
         x-azure-settings:
