@@ -1,7 +1,7 @@
 {
   "name": "@source4society/SCEPTER-GatewayService",
-  "version": "1.1.0",
-  "description": "Gateway for invoking functions over http",
+  "version": "1.2.0",
+  "description": "Gateway for invoking api functions within a cloud service provider",
   "main": "handler.js",
   "repository": "git@github.com:source4societyorg/SCEPTER-GatewayService",
   "author": "Source4Society.Org",
@@ -16,6 +16,7 @@
     "aws-sdk": "^2.149.0",
     "jsonwebtoken": "^8.1.0",
     "mime-types": "^2.1.17",
+    "request": "^2.83.0",
     "serverless": "^1.25.0"
   },
   "devDependencies": {
