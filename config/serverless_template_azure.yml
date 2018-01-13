@@ -8,8 +8,8 @@ plugins:
   - serverless-azure-functions
 
 functions:
-  proxy:
-    handler: handler.proxy
+  proxyRequest:
+    handler: handler.proxyRequest
     events:
       - http: true,
         x-azure-settings:
