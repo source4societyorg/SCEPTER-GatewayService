@@ -2,9 +2,10 @@
 const universalProxy = require('./handler.proxyRequest').proxyRequest
 const awsProxy = (event, context, callback) => universalProxy(event, context, callback)
 const azureProxy = (context, req) => universalProxy(req, context, context.done)
-switch(process.env.PROVIDER) {
+switch (process.env.PROVIDER) {
   case 'azure':
     module.exports.proxyRequest = azureProxy
+    break
   default:
     module.exports.proxyRequest = awsProxy
 }

@@ -27,16 +27,16 @@ const proxyRequest = (
 ) => {
   // inject dependencies
   const service = constructService(env, credentialsPath, servicesPath)
-  const errorHandler = getErrorHandlerDependency(callback, service),
-    successHandler = getSuccessHandlerDependency(callback, service),
-    accessDeniedResponse = getAccessDeniedResponseDependency(callback, service),
-    makeAuthCallback = getMakeAuthCallbackDependency(service, accessDeniedResponse, callbackHandler, errorHandler, successHandler)   
+  const errorHandler = getErrorHandlerDependency(callback, service)
+  const successHandler = getSuccessHandlerDependency(callback, service)
+  const accessDeniedResponse = getAccessDeniedResponseDependency(callback, service)
+  const makeAuthCallback = getMakeAuthCallbackDependency(service, accessDeniedResponse, callbackHandler, errorHandler, successHandler)
 
   // Execute service call
-  try { 
-    const authorization = service.extractAuthenticationToken(event.headers),
-    jwt = service.extractJwt(authorization),
-    emittedEvent = JSON.parse(event.body)
+  try {
+    const authorization = service.extractAuthenticationToken(event.headers)
+    const jwt = service.extractJwt(authorization)
+    const emittedEvent = JSON.parse(event.body)
     service.authorize(emittedEvent, jwt, (err, data) => callbackHandler(err, data, errorHandler, makeAuthCallback(emittedEvent)))
   } catch (error) {
     errorHandler(error)
