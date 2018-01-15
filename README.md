@@ -7,13 +7,9 @@
 
 We recommend forking this repository.
 
-If you are using the [SCEPTER](https://www.github.com/source4societyorg/SCEPTER-core) framework you can install this service using the following command from your project folder:
+If you are using the [SCEPTER](https://www.github.com/source4societyorg/SCEPTER-core) framework you can install this service using the `service:add` scepter command (SCEPTER-command-service)[https://github.com/source4societyorg/SCEPTER-command-service]
 
-    node bin/scepter.js service:add git@github.com:source4societyorg/SCEPTER-GatewayService.git GatewayService
-
-You can replace the github uri with the uri of your forked repository.
-
-This will clone the service into your services folder as a submodule, and run `yarn install` as well as `yarn test`. We are currently working on initialization scripts that will help setup configuration files after running this command. 
+This will clone the service into your services folder as a submodule.
 
 Alternatively if you are running this as a standalone service, you can simply `git clone` this repository or it's fork, and setup the configuration files locally.
 
@@ -23,41 +19,20 @@ If you are running the commands via powershell, be sure to install the windows-b
 
 ## Configuration
 
-If you are using [SCEPTER](https://www.github.com/source4societyorg/SCEPTER-core) then you should create simlinks to `./credentials.json` and `services.json` to their places in your projects `/config/` directory. If you are using this service as a standalone service, then you can replace those simlinks with the files themselves. 
-
 The `serverless.yml` is not checked in to this repository as the `config/serverless_template_aws.yml` and `config/serverless_template_azure.yml` files will replace the `serverless.yml` file when using SCEPTER commands such as `service:deploy` and `service:invoke` [Read More about these commands](https://github.com/source4societyorg/SCEPTER-command-service). If you are not using SCEPTER, pick a provider template and copy that to `serverless.yml`. Most likely you will want to fork the repository and ensure that the file is committed.
 
-To setup the `credentials.json` you can use the following boilerplate (just prefill your credentials):
+The services.json requires you to setup a configuration for every service you wish to access via the gateway. These services can be invoked locally, via AWS Lambdas, or the Azure http url presently. Support for AWS SNS and Azure Events/Service messaging coming soon. The environment is referenced by the stage parameter (see [serverless.com](http://www.serverless.com) for information on how to set the stage parameter on invocation or deploy). 
 
-    {
-        "environments": {
-            "dev": {
-                "provider": "aws",
-                "configuration": {
-                    "accessKeyId": "yourawskey",
-                    "secretAccessKey": "yourawssecret",
-                    "region":"us-east-1",
-                    "account":"123456789", 
-                    "maxRetries":2
-                }, 
-                "jwtKeySecret": "chooseasecret", 
-                "tokenDuration": "30d",
-            }
-        }
-    }
+Each service has a default provider that can be specified as `local`, `aws:lambda`, or `azure:http`. Support for the other cloud function services are forthcoming. You can override the default provider for a service by specifying the provider key within your specific services configuration. The key corresponding to your services configuration will match the `type` property on the gateways payload object.
 
-The services.json requires you to setup a configuration for every service you wish to access via the gateway. These services can be invoked locally or over AWS Lambdas presently. The gateway does not use SNS yet so at the moment if you invoke a lambda this lambda will also run until the second lambda completes, so it is a good idea to keep them short. The environment is referenced by the stage parameter (see [serverless.com](http://www.serverless.com) for information on how to set the stage parameter on invocation or deploy). 
-
-Each service has a default provider that can be specified as `local` or `aws:lambda`. Support for the other cloud function services are forthcoming. You can override the default provider for a service by specifying the provider key within your specific services configuration. The key corresponding to your services configuration will match the `type` property on the gateways payload object.
-
-The roles that are allowed access to the service as listed in the `security` property.
+The roles that are allowed access to the service as listed in the `security` property as an array.
 
 For local invocation, the serviceName should correspond to the folder within the `services` directory if you are using [SCEPTER](https://www.github.com/source4societyorg/SCEPTER-core). If not, then you can specify the path to the folder that contains your service here. Note that by default the cwd of the service path when invocing local services is the parent folder of this service. 
 
     {
          "environments": {
             "test": {
-                "provider": "local", 
+                "provider": "local",  //The global provider will default to local
                 "configuration": {
                     "AUTHENTICATE": {
                         "serviceName": "AuthenticationService",
@@ -67,12 +42,14 @@ For local invocation, the serviceName should correspond to the folder within the
                     "TEST": {
                         "serviceName": "TestService",
                         "function": "test",                   
-                        "security": ["TEST"]                    
+                        "security": ["TEST"],
+                        "provider": "aws:lambda' //Overrides local with aws:lambda and will call the TestService-test lambda and test endpoint
                     }, 
                     "TEST_ANONYMOUS": {
                         "serviceName": "TestService",
-                        "function": "test",                   
-                        "security": ["ROLE_ANONYMOUS"]                    
+                        "function": "https://<appName>-testservice-test.azurewebsites.net/api/functionName?code=<apiKey>",                  
+                        "security": ["ROLE_ANONYMOUS"],
+                        "provider: "azure:http"         
                     },
                     "TEST_REJECTION": {
                         "serviceName": "TestService",
