@@ -1,5 +1,8 @@
 # SCEPTER-GatewayService
 
+[![scepter-logo](http://res.cloudinary.com/source-4-society/image/upload/v1514622047/scepter_hzpcqt.png)](https://github.com/source4societyorg/SCEPTER-core)
+
+[![js-standard-style](https://cdn.rawgit.com/standard/standard/master/badge.svg)](http://standardjs.com)
 [![Build Status](https://travis-ci.org/source4societyorg/SCEPTER-GatewayService.svg?branch=master)](https://travis-ci.org/source4societyorg/SCEPTER-GatewayService)
 [![Serverless](http://public.serverless.com/badges/v1.svg)](http://serverless.com)
 
@@ -70,7 +73,7 @@ For local invocation, the serviceName should correspond to the folder within the
 
 ## Deployment
 
-See [Serverless.com](https://www.serverles.com) and [SCEPTER-command-service](https://github.com/source4societyorg/SCEPTER-command-service) for information on how to deploy services to various cloud providers. 
+See [Serverless.com](https://www.serverles.com) and [SCEPTER-command-service](https://github.com/source4societyorg/SCEPTER-command-service) for information on how to deploy services to various cloud providers without having to modify configuration files. 
 
 ## Example
 
