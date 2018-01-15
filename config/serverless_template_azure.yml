@@ -1,4 +1,4 @@
-service: ${file(./config/servicename.json):service}-${opt:stage, 'dev'}
+service: ${file(./config/service_name.json):service}-${opt:stage, 'dev'}
 provider:
   name: azure
   location: ${opt:location, 'West US'}
@@ -13,13 +13,7 @@ functions:
     events:
       - http: true,
         x-azure-settings:
-          authLevel : anonymous
-          methods: post
-          route: /         
-      - http: true,
-        x-azure-settings:
-          direction: out
-          name: res 
+          authLevel : anonymous     
 package:
   exclude: 
     - 'test/**'
@@ -28,4 +22,7 @@ package:
     - 'README.md'
     - '.travis.yml'
     - 'docs/**'
-    - 'handler_aws.js'
+    - 'config/**'
+    - '.gitignore'
+    - '.git/**'
+    - 'node_modules/**'

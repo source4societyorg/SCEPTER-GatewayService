@@ -1,34 +1,19 @@
-service: ${file(./config/service_name.json):service}
+service: ${file(./config/service_name.json):service}-${opt:stage, 'dev'}
 provider:
-  name: aws
-  runtime: nodejs6.10
-  stage: ${opt:stage, 'dev'}
+  name: azure
+  location: ${opt:location, 'West US'}
   environment:
-    STAGE: ${self:provider.stage}
-    SLS_DEBUG: "*"
-    PROVIDER: 'aws'
-  iamRoleStatements:
-    - Effect: Allow
-      Action:
-        - lambda:InvokeFunction
-        - lambda:InvokeAsync
-      Resource: "*"
+    PROVIDER: 'azure'
+plugins: 
+  - serverless-azure-functions
+
 functions:
   proxyRequest:
     handler: handler.proxyRequest
     events:
-      - http:
-            path: /         
-            method: post                                      
-            cors:
-              origin: '*'
-              headers:
-                - Content-Type
-                - X-Amz-Date
-                - Authorization
-                - X-Api-Key
-                - X-Amz-Security-Token
-                - X-Amz-User-Agent 
+      - http: true,
+        x-azure-settings:
+          authLevel : anonymous     
 package:
   exclude: 
     - 'test/**'
@@ -37,5 +22,7 @@ package:
     - 'README.md'
     - '.travis.yml'
     - 'docs/**'
-    - 'handler_azure.js'
-    - 'proxyRequest-function.json'
+    - 'config/**'
+    - '.gitignore'
+    - '.git/**'
+    - 'node_modules/**'

@@ -5,16 +5,14 @@
             "type": "httpTrigger",
             "direction": "in",
             "name": "req",
-            "route": "/",
-            "authLevel": "anonymous",
-            "methods": "post"
+            "authLevel": "anonymous"
         },
         {
             "type": "http",
             "direction": "out",
-            "name": "res"
+            "name": "$return"
         }
     ],
-    "entryPoint": "proxy",
+    "entryPoint": "proxyRequest",
     "scriptFile": "handler.js"
 }
