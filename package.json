@@ -1,6 +1,6 @@
 {
   "name": "@source4society/SCEPTER-GatewayService",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "description": "Gateway for invoking api functions within a cloud service provider",
   "main": "handler.js",
   "repository": "git@github.com:source4societyorg/SCEPTER-GatewayService",
