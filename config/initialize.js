@@ -7,5 +7,5 @@ Object.keys(credentials.environments).map((environment) => {
   credentials.environments[environment].jwtKeySecret = utilities.keyGenerator(46)
 })
 
-fs.writeFileSync('../../../config/credentials.json', JSON.stringify(credentials) , 'utf-8'); 
+fs.writeFileSync('../../../config/credentials.json', JSON.stringify(credentials), 'utf-8')
 console.log('The jwtKeySecret property has been initialized to a random value for each existing environment in your credentials.json. Be sure to modify these if necessary')

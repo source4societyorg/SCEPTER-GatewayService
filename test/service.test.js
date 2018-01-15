@@ -1,6 +1,7 @@
 const GatewayService = require('../service')
-const serviceconfig = require('./services')
-const credentialconfig = require('./credentials')
+const immutable = require('immutable')
+const serviceconfig = immutable.fromJS(require('./services'))
+const credentialconfig = immutable.fromJS(require('./credentials'))
 const jsonwebtoken = require('jsonwebtoken')
 
 test('proxy function will spawn process for local provider and return payload if status is true', (done) => {
@@ -78,15 +79,15 @@ test('Credentials and Services are properly defined', () => {
   service.credentials = credentialconfig
   expect(service.credentials).not.toBeUndefined()
   expect(service.services).not.toBeUndefined()
-  expect(service.credentials.environments).not.toBeUndefined()
-  expect(service.services.environments).not.toBeUndefined()
-  expect(service.credentials.environments[service.stage]).not.toBeUndefined()
-  expect(service.credentials.environments[service.stage].jwtKeySecret).not.toBeUndefined()
-  expect(service.services.environments[service.stage]).not.toBeUndefined()
-  expect(service.services.environments[service.stage].provider).not.toBeUndefined()
-  expect(service.credentials.environments[service.stage].provider).not.toBeUndefined()
-  expect(service.services.environments[service.stage].configuration).not.toBeUndefined()
-  expect(service.credentials.environments[service.stage].configuration).not.toBeUndefined()
+  expect(service.credentials.get('environments')).not.toBeUndefined()
+  expect(service.services.get('environments')).not.toBeUndefined()
+  expect(service.credentials.getIn(['environments', service.stage])).not.toBeUndefined()
+  expect(service.credentials.getIn(['environments', service.stage, 'jwtKeySecret'])).not.toBeUndefined()
+  expect(service.services.getIn(['environments', service.stage])).not.toBeUndefined()
+  expect(service.services.getIn(['environments', service.stage, 'provider'])).not.toBeUndefined()
+  expect(service.credentials.getIn(['environments', service.stage, 'provider'])).not.toBeUndefined()
+  expect(service.services.getIn(['environments', service.stage, 'configuration'])).not.toBeUndefined()
+  expect(service.credentials.getIn(['environments', service.stage, 'configuration'])).not.toBeUndefined()
 })
 
 test('authorize function will reject invalid jwt', (done) => {
@@ -116,7 +117,7 @@ test('authorize function will accept valid jwt and authorized role', (done) => {
     done()
   }
 
-  const jwt = jsonwebtoken.sign(userdata, service.credentials.environments[service.stage].jwtKeySecret)
+  const jwt = jsonwebtoken.sign(userdata, service.credentials.getIn(['environments', service.stage, 'jwtKeySecret']))
   service.authorize({type: 'TEST', payload: {}}, jwt, callback)
 })
 
@@ -133,7 +134,7 @@ test('authorize function will reject jwt when user doesnt have the proper role a
     done()
   }
 
-  const jwt = jsonwebtoken.sign(userdata, service.credentials.environments[service.stage].jwtKeySecret)
+  const jwt = jsonwebtoken.sign(userdata, service.credentials.getIn(['environments', service.stage, 'jwtKeySecret']))
   service.authorize({type: 'TEST', payload: {}}, jwt, callback)
 })
 
@@ -150,7 +151,7 @@ test('authorize function will reject expired jwt', (done) => {
     done()
   }
 
-  const jwt = jsonwebtoken.sign(userdata, service.credentials.environments[service.stage].jwtKeySecret, {expiresIn: '-1d'})
+  const jwt = jsonwebtoken.sign(userdata, service.credentials.getIn(['environments', service.stage, 'jwtKeySecret']), {expiresIn: '-1d'})
   service.authorize({type: 'TEST', payload: {}}, jwt, callback)
 })
 
@@ -197,7 +198,7 @@ test('authorize function will authorize events with anonymous access when jwt va
     done()
   }
 
-  const jwt = jsonwebtoken.sign(userdata, service.credentials.environments[service.stage].jwtKeySecret, {expiresIn: '1d'})
+  const jwt = jsonwebtoken.sign(userdata, service.credentials.getIn(['environments', service.stage, 'jwtKeySecret']), {expiresIn: '1d'})
   service.authorize({type: 'TEST_ANONYMOUS', payload: {}}, jwt, callback)
 })
 
@@ -270,26 +271,27 @@ test('role access returns the role access specified in configuration or an empty
   let security = service.getRoleAccess('undefined service')
   expect(security).toEqual([])
   security = service.getRoleAccess('TEST')
-  expect(security).toEqual(serviceconfig.environments['test'].configuration['TEST'].security)
+  expect(security).toEqual(serviceconfig.getIn(['environments', 'test', 'configuration', 'TEST', 'security']))
   security = service.getRoleAccess('DEFAULT_SECURITY')
   expect(security).toEqual([])
 })
 
 test('extracting jwt from headers', () => {
   const service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  const mockHeaderWithoutAuth = { otherheader: 'no auth here' }
-  let header = service.extractAuthenticationToken({ 'Authorization': 'Bearer: jwttoken' })
-  let token = service.extractJwt(header)
+  let authenticationHeader = service.extractAuthenticationToken({ 'Authorization': 'Bearer: jwttoken' })
+  const mockHeaderWithoutAuth = {'Content-Type': 'application/json'}
+  let token = service.extractJwt(authenticationHeader)
   expect(token).toEqual('jwttoken')
-  header = service.extractAuthenticationToken(mockHeaderWithoutAuth)
-  expect(header).toEqual(mockHeaderWithoutAuth)
+  authenticationHeader = service.extractAuthenticationToken(mockHeaderWithoutAuth)
+  expect(authenticationHeader).toBeNull()
   token = service.extractJwt()
   expect(token).toBeNull()
-  header = service.extractAuthenticationToken()
-  expect(header).toBeUndefined()
+  authenticationHeader = service.extractAuthenticationToken()
+  expect(authenticationHeader).toBeNull()
 })
 
-test('default credential settings', () => {
+test('default settings for AWS properties', () => {
+  process.env.PROVIDER = 'aws'
   const service = new GatewayService('test2', './test/credentials.json', './test/services.json')
   expect(service.account).toEqual('')
   expect(service.region).toEqual('')
@@ -337,4 +339,52 @@ test('function invocation callback parses data if it is a string and handles err
     done()
   }
   service.functionInvocationCallback(null, JSON.stringify({status: false, errors: new Error('test error')}), mockProxyCallback)
+})
+
+test('invokeAzureHttp invokes request on url', (done) => {
+  const service = new GatewayService('test', './test/credentials.json', './test/services.json')
+  const mockCallback = () => done()
+  const mockPayload = {}
+  const mockUrl = 'http://mockurl'
+  const mockFunctionInvocationCallback = (error, response, proxyCallback, parse) => {
+    proxyCallback(error, response)
+  }
+  const mockRequest = (params, requestCallback) => {
+    requestCallback(null, '{}')
+  }
+  service.functionInvocationCallback = mockFunctionInvocationCallback
+  service.request = mockRequest
+  service.invokeViaAzureHttp(mockCallback, mockPayload, mockUrl)
+})
+
+test('constructor doesn\'t initialize aws variables when provider is azure', () => {
+  process.env.PROVIDER = 'azure'
+  const service = new GatewayService('test', './test/credentials.json', './test/services.json')
+  expect(service.account).toBeUndefined()
+  expect(service.region).toBeUndefined()
+})
+
+test('proxy calls azure http invocation routine when aws:http is specified as the service provider', (done) => {
+  const service = new GatewayService('test', './test/credentials.json', './test/services.json')
+  const mockServices = immutable.fromJS({ environments: { test: { configuration: { 'TEST': { provider: 'azure:http' } } } } })
+  const mockInvocation = () => done()
+  const mockCallback = () => ({})
+  service.invokeViaAzureHttp = mockInvocation
+  service.services = mockServices
+  service.proxy({ type: 'TEST', payload: {} }, true, mockCallback)
+})
+
+test('function invocation callback handles errors properly when thrown', (done) => {
+  const service = new GatewayService('test', './test/credentials.json', './test/services.json')
+  const mockUtilities = {
+    isEmpty: () => { throw new Error('Test error') }
+  }
+  const mockCallback = (err, data) => {
+    expect(err).not.toBeUndefined()
+    expect(err.message).toEqual('Test error')
+    expect(data).toBeUndefined()
+    done()
+  }
+  service.utilities = mockUtilities
+  service.functionInvocationCallback(null, null, mockCallback, false)
 })
