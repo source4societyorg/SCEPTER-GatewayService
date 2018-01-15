@@ -1,4 +1,4 @@
 {
   "headers": {},
-  "body": "{\"type\":\"AUTHENTICATE\", \"payload\":{}}"
+  "body": "{\"type\":\"UPSShippingService\", \"payload\":{}}"
 }

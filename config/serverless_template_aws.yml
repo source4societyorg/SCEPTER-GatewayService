@@ -39,3 +39,4 @@ package:
     - 'docs/**'
     - 'handler_azure.js'
     - 'proxyRequest-function.json'
+    - 'config/**'

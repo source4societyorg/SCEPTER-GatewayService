@@ -12,12 +12,12 @@
     "sls": "sls"
   },
   "dependencies": {
-    "@source4society/scepter-utility-lib": "^0.0.5",
+    "@source4society/scepter-utility-lib": "^0.0.7",
     "aws-sdk": "^2.149.0",
+    "immutable": "^3.8.2",
     "jsonwebtoken": "^8.1.0",
     "mime-types": "^2.1.17",
-    "request": "^2.83.0",
-    "serverless": "^1.25.0"
+    "request": "^2.83.0"
   },
   "devDependencies": {
     "docco": "^0.7.0",
@@ -28,6 +28,7 @@
     "eslint-plugin-promise": "^3.6.0",
     "eslint-plugin-standard": "^3.0.1",
     "jest-cli": "^21.2.1",
+    "serverless": "^1.25.0",
     "serverless-azure-functions": "ssh://git@github.com:serverless/serverless-azure-functions"
   }
 }
