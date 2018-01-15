@@ -10,3 +10,5 @@ parameters.json
 # Serverless directories
 .serverless
 serverless.yml
+# because of compatibility between powershell and bash
+yarn.lock

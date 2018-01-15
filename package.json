@@ -27,8 +27,9 @@
     "eslint-plugin-node": "^5.2.1",
     "eslint-plugin-promise": "^3.6.0",
     "eslint-plugin-standard": "^3.0.1",
+    "eslint-plugin-jest": "^21.5.0",
     "jest-cli": "^21.2.1",
     "serverless": "^1.25.0",
-    "serverless-azure-functions": "ssh://git@github.com:serverless/serverless-azure-functions"
+    "serverless-azure-functions": "https://github.com/serverless/serverless-azure-functions"
   }
 }

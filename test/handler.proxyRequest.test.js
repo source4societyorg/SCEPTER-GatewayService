@@ -1,9 +1,9 @@
+process.env.CREDENTIALS_PATH = './test/credentials.json'
+process.env.SERVICES_PATH = './test/services.json'
 const handler = require('../handler.proxyRequest')
 
 test('proxyRequest handler will invoke the service by extracting an authentication token and then passing it to the services authorization function', (done) => {
   process.env.environment = 'test'
-  process.env.CREDENTIALS_PATH = './test/credentials.json'
-  process.env.SERVICES_PATH = './test/services.json'
 
   const testRequest = require('./testRequest.json')
   const mockServiceFunction = () => 'mockresult'

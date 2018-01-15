@@ -1,3 +1,5 @@
+process.env.SERVICES_PATH = './test/services.json'
+process.env.CREDENTIALS_PATH = './test/credentials.json'
 const handlerUtilities = require('../handlerUtilities')
 const GatewayService = require('../service')
 

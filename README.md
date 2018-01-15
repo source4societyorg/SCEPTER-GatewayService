@@ -10,7 +10,7 @@
 
 We recommend forking this repository.
 
-If you are using the [SCEPTER](https://www.github.com/source4societyorg/SCEPTER-core) framework you can install this service using the `service:add` scepter command (SCEPTER-command-service)[https://github.com/source4societyorg/SCEPTER-command-service]
+If you are using the [SCEPTER](https://www.github.com/source4societyorg/SCEPTER-core) framework you can install this service using the `service:add` scepter command [SCEPTER-command-service](https://github.com/source4societyorg/SCEPTER-command-service)
 
 This will clone the service into your services folder as a submodule.
 
