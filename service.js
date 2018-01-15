@@ -1,7 +1,7 @@
 'use strict'
 const immutable = require('immutable')
 class GatewayService {
-  constructor (stage = 'dev', credentialsPath = './credentials.json', servicesPath = './services.json') {
+  constructor (stage = 'dev', credentialsPath = process.env.CREDENTIALS_PATH, servicesPath = process.env.SERVICES_PATH) {
     const { spawn } = require('child_process')
     const jsonwebtoken = require('jsonwebtoken')
     this.credentials = immutable.fromJS(require(credentialsPath))

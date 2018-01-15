@@ -1,9 +1,10 @@
 const GatewayService = require('../service')
 const immutable = require('immutable')
-const serviceconfig = immutable.fromJS(require('./services'))
-const credentialconfig = immutable.fromJS(require('./credentials'))
+const serviceconfig = immutable.fromJS(require('./services.json'))
+const credentialconfig = immutable.fromJS(require('./credentials.json'))
 const jsonwebtoken = require('jsonwebtoken')
-
+process.env.CREDENTIALS_PATH = './test/credentials.json'
+process.env.SERVICES_PATH = './test/services.json'
 test('proxy function will spawn process for local provider and return payload if status is true', (done) => {
   const service = new GatewayService('test', './test/credentials.json', './test/services.json')
   service.services = serviceconfig
