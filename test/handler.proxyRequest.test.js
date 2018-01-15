@@ -55,3 +55,45 @@ test('proxyRequest handler returns valid response on success with valid input', 
   const testRequest = require('./testRequest.json')
   handler.proxyRequest(testRequest, null, mockCallback)
 })
+
+test('that proxyRequest throws error if request body is undefined', (done) => {
+  const mockServiceConstructor = () => ({
+    extractAuthenticationToken: () => ({}),
+    extractJwt: () => ({})
+  })
+  const mockCallback = () => done()
+  const mockGetDependency = () => () => ({})
+  const mockErrorHandler = () => (error) => {
+    expect(error.message).toEqual('Event body is undefined')
+    done()
+  }
+
+  handler.proxyRequest(
+    { },
+    undefined,
+    mockCallback,
+    mockServiceConstructor,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    mockGetDependency,
+    mockErrorHandler
+  )
+})
+
+test('that proxyRequest parses JSON body twice for Azure', (done) => {
+  const mockServiceConstructor = () => ({
+    extractAuthenticationToken: () => ({}),
+    extractJwt: () => ({}),
+    authorize: () => done()
+  })
+  const mockCallback = () => done()
+
+  handler.proxyRequest(
+    { body: JSON.stringify('{ "type": "TEST", "payload": {} }') },
+    undefined,
+    mockCallback,
+    mockServiceConstructor
+  )
+})

@@ -10,15 +10,15 @@ class GatewayService {
     this.spawn = spawn
     this.jsonwebtoken = jsonwebtoken
     this.request = require('request')
-    switch (process.env.PROVIDER === 'aws') {
+    switch (process.env.PROVIDER) {
       case 'azure':
-      break
+        break
       case 'aws':
-        this.AWS =  require('aws-sdk')
+        this.AWS = require('aws-sdk')
         this.account = this.credentials.getIn(['environments', this.stage, 'provider', 'aws', 'account'], '')
-        this.region = this.credentials.getIn(['environments', this.stage, 'provider', 'aws', 'region'], '')  
-      break
-      default:      
+        this.region = this.credentials.getIn(['environments', this.stage, 'provider', 'aws', 'region'], '')
+        break
+      default:
     }
 
     this.utilities = require('@source4society/scepter-utility-lib')
@@ -46,19 +46,17 @@ class GatewayService {
         keySecret = this.credentials.getIn(['environments', this.stage, 'jwtKeySecret'], '')
         this.jsonwebtoken.verify(jwt, keySecret)
         userAuthData = this.jsonwebtoken.decode(jwt)
-        userRoles = userAuthData.roles     
+        userRoles = userAuthData.roles
       }
-      
+
       if (!this.utilities.isEmpty(security) && ((security.indexOf('ROLE_ANONYMOUS') > -1) || security.some((value) => userRoles.indexOf(value) > -1))) {
         authCallback(null, userAuthData)
       } else {
         authCallback({message: 'Access denied', code: 403}, null)
-      } 
+      }
     } catch (err) {
       authCallback({message: err.message, code: 403})
-      return
     }
-  
   }
 
   proxy (serviceEvent, userData, proxyCallback) {
@@ -87,11 +85,11 @@ class GatewayService {
 
   invokeViaAzureHttp (proxyCallback, payload, func) {
     this.request({
-        url: func,
-        json: true,
-        body: payload
-      },
-      (error, response, body) => this.functionInvocationCallback(error, !this.utilities.isEmpty(body) ? body || null : null, proxyCallback, false)
+      url: func,
+      json: true,
+      body: payload
+    },
+    (error, response, body) => this.functionInvocationCallback(error, !this.utilities.isEmpty(body) ? body || null : null, proxyCallback, false)
     )
   }
 
@@ -116,9 +114,9 @@ class GatewayService {
   functionInvocationCallback (err, data, proxyCallback, parse = false) {
     try {
       const result = typeof data === 'string' ? JSON.parse(data.toString('utf8')) || data : data
-      if (this.utilities.isEmpty(err) 
-        && (!this.utilities.isEmpty(result) 
-          && (result.status === true || this.utilities.isEmpty(result.status))
+      if (this.utilities.isEmpty(err) &&
+        (!this.utilities.isEmpty(result) &&
+          (result.status === true || this.utilities.isEmpty(result.status))
         )
       ) {
         proxyCallback(null, result)
@@ -131,8 +129,8 @@ class GatewayService {
   }
 
   getRoleAccess (eventType) {
-    return !this.utilities.isEmpty(this.services.getIn(['environments', this.stage, 'configuration', eventType])) ? 
-      this.services.getIn(['environments', this.stage, 'configuration', eventType, 'security'], []) : []
+    return !this.utilities.isEmpty(this.services.getIn(['environments', this.stage, 'configuration', eventType]))
+      ? this.services.getIn(['environments', this.stage, 'configuration', eventType, 'security'], []) : []
   }
 
   extractErrorCodeFromResponse (error, defaultCode = 500) {

@@ -31,7 +31,7 @@ const proxyRequest = (
   const successHandler = getSuccessHandlerDependency(callback, service)
   const accessDeniedResponse = getAccessDeniedResponseDependency(callback, service)
   const makeAuthCallback = getMakeAuthCallbackDependency(service, accessDeniedResponse, callbackHandler, errorHandler, successHandler)
-  
+
   // Execute service call
   try {
     const authorization = service.extractAuthenticationToken(event.headers)
@@ -40,8 +40,8 @@ const proxyRequest = (
       throw new Error('Event body is undefined')
     }
     let emittedEvent = JSON.parse(event.body)
-    if(typeof emittedEvent === 'string') {
-      emittedEvent = JSON.parse(emittedEvent) //For azure
+    if (typeof emittedEvent === 'string') {
+      emittedEvent = JSON.parse(emittedEvent) // For azure
     }
     service.authorize(emittedEvent, jwt, (err, data) => callbackHandler(err, data, errorHandler, makeAuthCallback(emittedEvent)))
   } catch (error) {
