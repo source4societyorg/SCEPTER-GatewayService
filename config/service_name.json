@@ -1,3 +1,0 @@
-{
-  "service": "${file(./parameters.json):appName}-GatewayService"
-}
