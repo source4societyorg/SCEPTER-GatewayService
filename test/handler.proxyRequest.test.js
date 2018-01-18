@@ -38,14 +38,14 @@ test('proxyRequest handler will catch errors and redirect to the injected error 
     extractAuthenticationToken: () => { throw new Error('test error') }
   }
   const mockServiceConstructor = () => mockService
-  handler.proxyRequest(testRequest, null, null, mockServiceConstructor, undefined, undefined, undefined, mockGetDependency, mockGetDependency, mockGetErrorHandlerDependency)
+  handler.proxyRequest(testRequest, null, null, mockServiceConstructor, undefined, undefined, undefined, undefined, mockGetDependency, mockGetDependency, mockGetErrorHandlerDependency)
 })
 
 test('proxyRequest handler returns valid response on success with valid input', (done) => {
   process.env.environment = 'test'
   process.env.CREDENTIALS_PATH = './test/credentials.json'
   process.env.SERVICES_PATH = './test/services.json'
-
+  process.env.PARAMETERS_PATH = './test/parameters.json'
   const mockCallback = (err, data) => {
     expect(err).toBeNull()
     expect(data).not.toBeUndefined()
@@ -73,6 +73,7 @@ test('that proxyRequest throws error if request body is undefined', (done) => {
     undefined,
     mockCallback,
     mockServiceConstructor,
+    undefined,
     undefined,
     undefined,
     undefined,

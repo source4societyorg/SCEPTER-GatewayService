@@ -1,8 +1,8 @@
 const GatewayService = require('./service')
 
 const handlerUtilities = {
-  constructGatewayService: (environment, credentialsPath, servicesPath) => (
-    new GatewayService(environment, credentialsPath, servicesPath)
+  constructGatewayService: (environment, credentialsPath, servicesPath, parametersPath) => (
+    new GatewayService(environment, credentialsPath, servicesPath, parametersPath)
   ),
   accessDeniedResponse: (callback, service) => () => {
     let response = service.prepareAccessDeniedResponse()
@@ -10,7 +10,8 @@ const handlerUtilities = {
   },
   ENVIRONMENT: process.env.stage || 'dev',
   SERVICE_PATH: process.env.SERVICES_PATH || './services',
-  CREDENTIALS_PATH: process.env.CREDENTIALS_PATH || './credentials'
+  CREDENTIALS_PATH: process.env.CREDENTIALS_PATH || './credentials',
+  PARAMETERS_PATH: process.env.PARAMETERS_PATH || './parameters'
 }
 
 module.exports = handlerUtilities
