@@ -19,14 +19,15 @@ const proxyRequest = (
   env = handlerUtilities.ENVIRONMENT,
   servicesPath = handlerUtilities.SERVICE_PATH,
   credentialsPath = handlerUtilities.CREDENTIALS_PATH,
+  parametersPath = handlerUtilities.PARAMETERS_PATH,
   callbackHandler = utilities.standardCallbackHandler,
   getMakeAuthCallbackDependency = getMakeAuthCallback,
   getErrorHandlerDependency = utilities.standardErrorHandler,
   getSuccessHandlerDependency = utilities.standardSuccessHandler,
-  getAccessDeniedResponseDependency = handlerUtilities.accessDeniedResponse
+  getAccessDeniedResponseDependency = handlerUtilities.accessDeniedResponse,
 ) => {
   // inject dependencies
-  const service = constructService(env, credentialsPath, servicesPath)
+  const service = constructService(env, credentialsPath, servicesPath, parametersPath)
   const errorHandler = getErrorHandlerDependency(callback, service)
   const successHandler = getSuccessHandlerDependency(callback, service)
   const accessDeniedResponse = getAccessDeniedResponseDependency(callback, service)

@@ -1,11 +1,12 @@
 'use strict'
 const immutable = require('immutable')
 class GatewayService {
-  constructor (stage = 'dev', credentialsPath = process.env.CREDENTIALS_PATH, servicesPath = process.env.SERVICES_PATH) {
+  constructor (stage = 'dev', credentialsPath = process.env.CREDENTIALS_PATH, servicesPath = process.env.SERVICES_PATH, parametersPath = process.env.PARAMETERS_PATH) {
     const { spawn } = require('child_process')
     const jsonwebtoken = require('jsonwebtoken')
     this.credentials = immutable.fromJS(require(credentialsPath))
     this.services = immutable.fromJS(require(servicesPath))
+    this.parameters = immutable.fromJS(require(parametersPath))
     this.stage = stage
     this.spawn = spawn
     this.jsonwebtoken = jsonwebtoken
@@ -96,7 +97,7 @@ class GatewayService {
   invokeLambda (proxyCallback, payload, func, serviceName, account, region) {
     let lambda = new this.AWS.Lambda({region: region})
     lambda.invoke({
-      FunctionName: account + ':' + serviceName + '-' + this.stage + '-' + func,
+      FunctionName: this.parameters.get('appName') + '-' + account + ':' + serviceName + '-' + this.stage + '-' + func,
       Payload: JSON.stringify(payload, null, 2)
     }, (err, data) => this.functionInvocationCallback(err, !this.utilities.isEmpty(data) ? data.Payload || null : null, proxyCallback, false))
   }
