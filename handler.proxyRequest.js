@@ -24,7 +24,7 @@ const proxyRequest = (
   getMakeAuthCallbackDependency = getMakeAuthCallback,
   getErrorHandlerDependency = utilities.standardErrorHandler,
   getSuccessHandlerDependency = utilities.standardSuccessHandler,
-  getAccessDeniedResponseDependency = handlerUtilities.accessDeniedResponse,
+  getAccessDeniedResponseDependency = handlerUtilities.accessDeniedResponse
 ) => {
   // inject dependencies
   const service = constructService(env, credentialsPath, servicesPath, parametersPath)

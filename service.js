@@ -97,7 +97,7 @@ class GatewayService {
   invokeLambda (proxyCallback, payload, func, serviceName, account, region) {
     let lambda = new this.AWS.Lambda({region: region})
     lambda.invoke({
-      FunctionName: this.parameters.get('appName') + '-' + account + ':' + serviceName + '-' + this.stage + '-' + func,
+      FunctionName: account + ':' + this.parameters.get('appName') + '-' + serviceName + '-' + this.stage + '-' + func,
       Payload: JSON.stringify(payload, null, 2)
     }, (err, data) => this.functionInvocationCallback(err, !this.utilities.isEmpty(data) ? data.Payload || null : null, proxyCallback, false))
   }
