@@ -205,20 +205,42 @@ test('authorize function will authorize events with anonymous access when jwt va
 })
 
 test('service will prepare an access denied response when function invoked', () => {
-  const service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  const response = service.prepareAccessDeniedResponse()
+  process.env.PROVIDER = 'aws'
+  let service = new GatewayService('test', './test/credentials.json', './test/services.json')
+  let response = service.prepareAccessDeniedResponse()
   expect(response.headers).not.toBeUndefined()
   expect(response.statusCode).toEqual(403)
+  expect(response.body).toEqual('{"status":false,"errors":{"code":403,"message":"Access denied"}}')
+  process.env.PROVIDER = 'azure'
+  service = new GatewayService('test', './test/credentials.json', './test/services.json')
+  response = service.prepareAccessDeniedResponse()
+  expect(response.headers).not.toBeUndefined()
+  expect(response.status).toEqual(403)
   expect(response.body).toEqual('{"status":false,"errors":{"code":403,"message":"Access denied"}}')
 })
 
 test('service will prepare a success response when function invoked with data', () => {
-  const service = new GatewayService('test', './test/credentials.json', './test/services.json')
+  process.env.PROVIDER = 'aws'
+  let service = new GatewayService('test', './test/credentials.json', './test/services.json')
   const mockData = {somedata: 'sometestdata'}
-  const response = service.prepareSuccessResponse(mockData)
+  let response = service.prepareSuccessResponse(mockData)
   expect(response.headers).not.toBeUndefined()
   expect(response.statusCode).toEqual(200)
   expect(response.body).toEqual(JSON.stringify(mockData))
+  process.env.PROVIDER = 'azure'
+  service = new GatewayService('test', './test/credentials.json', './test/services.json')
+  response = service.prepareSuccessResponse(mockData)
+  expect(response.headers).not.toBeUndefined()
+  expect(response.status).toEqual(200)
+  expect(response.body).toEqual(JSON.stringify(mockData))
+})
+
+test('service will prepare an error response properly when error passed in', () => {
+  process.env.PROVIDER = 'aws'
+  let service = new GatewayService('test', './test/credentials.json', './test/services.json')
+  let response = service.prepareErrorResponse(new Error('mock error'))
+  expect(response.headers).not.toBeUndefined()
+  expect(response.statusCode).toEqual(500)
 })
 
 test('all branches of extracting error message from response', () => {
