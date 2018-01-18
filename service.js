@@ -175,8 +175,11 @@ class GatewayService {
   prepareErrorResponse (error) {
     const code = this.extractErrorCodeFromResponse(error)
     const message = this.extractErrorMessageFromResponse(error)
-    this.response.statusCode = code
-    this.response.status = code
+    if(process.env.PROVIDER === 'aws') {
+      this.response.statusCode = code
+    } else {
+      this.response.status = code
+    }
     this.response.body = JSON.stringify({
       status: false,
       errors: {code: code, message: message}
@@ -185,15 +188,21 @@ class GatewayService {
   }
 
   prepareSuccessResponse (data) {
-    this.response.statusCode = 200
-    this.response.status = 200
+    if(process.env.PROVIDER === 'aws') {
+      this.response.statusCode = 200
+    } else {
+      this.response.status = 200
+    }
     this.response.body = JSON.stringify(data)
     return this.response
   }
 
   prepareAccessDeniedResponse () {
-    this.response.statusCode = 403
-    this.response.status = 403
+    if(process.env.PROVIDER === 'aws') {
+      this.response.statusCode = 403
+    } else {
+      this.response.status = 403
+    }
     this.response.body = JSON.stringify({
       status: false,
       errors: {

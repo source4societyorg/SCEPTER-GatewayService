@@ -1,5 +1,6 @@
 process.env.CREDENTIALS_PATH = './test/credentials.json'
 process.env.SERVICES_PATH = './test/services.json'
+process.env.PROVIDER = 'aws'
 const handler = require('../handler.proxyRequest')
 
 test('proxyRequest handler will invoke the service by extracting an authentication token and then passing it to the services authorization function', (done) => {
@@ -27,10 +28,29 @@ test('make authorization callback will produce a callback capable of calling the
   authCallback(false)
 })
 
-test('proxyRequest handler will catch errors and redirect to the injected error handler', (done) => {
+test('proxyRequest handler will catch errors and redirect to the injected error handler for aws provider', (done) => {
   process.env.environment = 'test'
   process.env.CREDENTIALS_PATH = './test/credentials.json'
   process.env.SERVICES_PATH = './test/services.json'
+  process.env.PROVIDER = 'aws'
+  delete require.cache[require.resolve('../handler.proxyRequest')]
+  const testRequest = require('./testRequest.json')
+  const mockGetDependency = () => () => true
+  const mockGetErrorHandlerDependency = () => (error) => { expect(error.message).toEqual('test error'); done() }
+  const mockService = {
+    extractAuthenticationToken: () => { throw new Error('test error') }
+  }
+  const mockServiceConstructor = () => mockService
+  handler.proxyRequest(testRequest, null, null, mockServiceConstructor, undefined, undefined, undefined, undefined, mockGetDependency, mockGetDependency, mockGetErrorHandlerDependency)
+})
+
+test('proxyRequest handler will catch errors and redirect to the injected error handler for azure provider', (done) => {
+  process.env.environment = 'test'
+  process.env.CREDENTIALS_PATH = './test/credentials.json'
+  process.env.SERVICES_PATH = './test/services.json'
+  process.env.PROVIDER = 'azure'
+  delete require.cache[require.resolve('../handler.proxyRequest')]
+  const handler = require('../handler.proxyRequest')
   const testRequest = require('./testRequest.json')
   const mockGetDependency = () => () => true
   const mockGetErrorHandlerDependency = () => (error) => { expect(error.message).toEqual('test error'); done() }
