@@ -98,21 +98,29 @@ class GatewayService {
     lambda.invoke({
       FunctionName: account + ':' + serviceName + '-' + this.stage + '-' + func,
       Payload: JSON.stringify(payload, null, 2)
-    }, (err, data) => this.functionInvocationCallback(err, !this.utilities.isEmpty(data) ? data.Payload || null : null, proxyCallback, true))
+    }, (err, data) => this.functionInvocationCallback(err, !this.utilities.isEmpty(data) ? data.Payload || null : null, proxyCallback, false))
   }
 
   invokeLocalFunction (proxyCallback, payload, func, folder, shell) {
     let command = './node_modules/.bin/sls invoke local -f ' + func + ' -d ' + JSON.stringify(JSON.stringify(payload)) + ' 2>&1'
+    let output = null
     let invocation = this.spawn(command, [], {
       stdio: ['inherit', 'pipe', 'pipe'],
       cwd: folder,
       shell: shell
     })
-    invocation.stdout.on('data', (data) => this.functionInvocationCallback(null, data, proxyCallback, true))
+    invocation.stdout.on('data', (data) => { 
+      output = data
+    })
+
+    invocation.on('close', (code) => {
+       this.functionInvocationCallback(null, output, proxyCallback, true)     
+    })
   }
 
-  functionInvocationCallback (err, data, proxyCallback, parse = false) {
+  functionInvocationCallback (err, data, proxyCallback, bytes = false) {
     try {
+      data = bytes ? data.toString('utf8') : data;
       const result = typeof data === 'string' ? JSON.parse(data.toString('utf8')) || data : data
       if (this.utilities.isEmpty(err) &&
         (!this.utilities.isEmpty(result) &&
