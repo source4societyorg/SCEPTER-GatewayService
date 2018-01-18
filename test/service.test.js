@@ -15,7 +15,7 @@ test('proxy function will spawn process for local provider and return payload if
   // mock EventEmitter
   const onMock = (eventName, callback) => callback(result)
   // mock the spawn function
-  service.spawn = (command, args, options) => ({stdout: {on: onMock}})
+  service.spawn = (command, args, options) => ({stdout: {on: onMock}, on: onMock})
 
   const finalCallback = (err, data) => {
     expect(data).toEqual(JSON.parse(result))
@@ -36,7 +36,7 @@ test('proxy function will spawn process for local provider and return error if s
   // mock EventEmitter
   const onMock = (eventName, callback) => callback(result)
   // mock the spawn function
-  service.spawn = (command, args, options) => ({stdout: {on: onMock}})
+  service.spawn = (command, args, options) => ({stdout: {on: onMock}, on: onMock})
 
   const finalCallback = (err, data) => {
     expect(err).toEqual(JSON.parse(result).errors)

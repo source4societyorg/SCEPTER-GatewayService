@@ -1,4 +1,1 @@
-{
-  "headers": {},
-  "body": "{\"type\":\"AUTHENICATION\", \"payload\":{}}"
-}
+{"headers": {},"body": "{\"type\":\"AUTHENTICATE\", \"payload\":{\"username\": \"nracadmin\",\"password\": \"recalls2017\"}}"}
