@@ -20,6 +20,11 @@ If you are running the commands via powershell, be sure to install the windows-b
 
     npm install --global --production windows-build-tools
 
+For Ubuntu, for nodejs 6.10 node-gyp won't install unless you install the following packages:
+
+    apt-get install libsecret-1-dev 
+    apt-get install g++-4.8 
+
 ## Configuration
 
 The `serverless.yml` is not checked in to this repository as the `config/serverless_template_aws.yml` and `config/serverless_template_azure.yml` files will replace the `serverless.yml` file when using SCEPTER commands such as `service:deploy` and `service:invoke` [Read More about these commands](https://github.com/source4societyorg/SCEPTER-command-service). If you are not using SCEPTER, pick a provider template and copy that to `serverless.yml`. Most likely you will want to fork the repository and ensure that the file is committed.
