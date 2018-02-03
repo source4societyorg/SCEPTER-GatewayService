@@ -1,0 +1,22 @@
+{
+  "appName":"Bookings",
+  "shell":"powershell", 
+  "environments": {
+    "development":{
+      "ui": {
+        "webui": {
+          "bucket":"bookingsavailability-dev"
+        }
+      },
+      "userTable": "users"
+    }, 
+    "production":{
+      "ui": {
+        "webui": {
+          "bucket":"bookingsavailability-prod"
+        }
+      },
+      "userTable": "users"
+    }
+  }
+}
