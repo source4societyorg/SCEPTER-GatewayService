@@ -1,5 +1,6 @@
 process.env.CREDENTIALS_PATH = './test/credentials.json'
 process.env.SERVICES_PATH = './test/services.json'
+process.env.PARAMETERS_PATH = './test/parameters.json'
 process.env.PROVIDER = 'aws'
 const handler = require('../handler.proxyRequest')
 
