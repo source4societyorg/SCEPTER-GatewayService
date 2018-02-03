@@ -110,18 +110,18 @@ class GatewayService {
       cwd: folder,
       shell: shell
     })
-    invocation.stdout.on('data', (data) => { 
+    invocation.stdout.on('data', (data) => {
       output = data
     })
 
     invocation.on('close', (code) => {
-       this.functionInvocationCallback(null, output, proxyCallback, true)     
+      this.functionInvocationCallback(null, output, proxyCallback, true)
     })
   }
 
   functionInvocationCallback (err, data, proxyCallback, bytes = false) {
     try {
-      data = bytes ? data.toString('utf8') : data;
+      data = bytes ? data.toString('utf8') : data
       const result = typeof data === 'string' ? JSON.parse(data.toString('utf8')) || data : data
       if (this.utilities.isEmpty(err) &&
         (!this.utilities.isEmpty(result) &&
@@ -175,7 +175,7 @@ class GatewayService {
   prepareErrorResponse (error) {
     const code = this.extractErrorCodeFromResponse(error)
     const message = this.extractErrorMessageFromResponse(error)
-    if(process.env.PROVIDER === 'aws') {
+    if (process.env.PROVIDER === 'aws') {
       this.response.statusCode = code
     } else {
       this.response.status = code
@@ -188,7 +188,7 @@ class GatewayService {
   }
 
   prepareSuccessResponse (data) {
-    if(process.env.PROVIDER === 'aws') {
+    if (process.env.PROVIDER === 'aws') {
       this.response.statusCode = 200
     } else {
       this.response.status = 200
@@ -198,7 +198,7 @@ class GatewayService {
   }
 
   prepareAccessDeniedResponse () {
-    if(process.env.PROVIDER === 'aws') {
+    if (process.env.PROVIDER === 'aws') {
       this.response.statusCode = 403
     } else {
       this.response.status = 403

@@ -4,9 +4,9 @@ jspm_packages
 coverage
 yarn-error.log
 request.json
-credentials.json
-services.json
-parameters.json
+/credentials.json
+/services.json
+/parameters.json
 # Serverless directories
 .serverless
 serverless.yml
