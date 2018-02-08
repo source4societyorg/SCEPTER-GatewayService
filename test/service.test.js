@@ -1,414 +1,584 @@
-const GatewayService = require('../service')
+
 const immutable = require('immutable')
-const serviceconfig = immutable.fromJS(require('./services.json'))
-const credentialconfig = immutable.fromJS(require('./credentials.json'))
-const jsonwebtoken = require('jsonwebtoken')
-process.env.CREDENTIALS_PATH = './test/credentials.json'
-process.env.SERVICES_PATH = './test/services.json'
-process.env.PARAMETERS_PATH = './test/parameters.json'
-test('proxy function will spawn process for local provider and return payload if status is true', (done) => {
-  const service = new GatewayService('test', './test/credentials.json', './test/services.json', './test/parameters.json')
-  service.services = serviceconfig
-  service.credentials = credentialconfig
+const utilities = require('@source4society/scepter-utility-lib')
+test('Service constructor sets preestablished defaults', () => {
+  const GatewayService = require('../service')
+  const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
+  expect(service.stage).toEqual('test')
+  expect(service.credentials).toEqual(immutable.fromJS(require('./credentials')))
+  expect(service.services).toEqual(immutable.fromJS(require('./services')))
+  expect(service.parameters).toEqual(immutable.fromJS(require('./parameters')))
+})
 
-  // mock function invocation result (note real result will be in bytes)
-  const result = JSON.stringify({status: true, result: {message: 'Payload goes in the result field'}})
-  // mock EventEmitter
-  const onMock = (eventName, callback) => callback(result)
-  // mock the spawn function
-  service.spawn = (command, args, options) => ({stdout: {on: onMock}, on: onMock})
+test('processRequest prepares request ', () => {
+  const mockEvent = {headers: 'mockheaders'}
+  const mockExtractAuthenticationToken = (headers) => {
+    expect(headers).toEqual('mockheaders')
+    return 'mockauthorization'
+  }
+  const mockExtractJwt = (authorization) => {
+    expect(authorization).toEqual('mockauthorization')
+    return 'mockjwt'
+  }
+  const mockValidateEventBody = (event) => {
+    expect(event).toEqual(mockEvent)
+  }
+  const mockProcessEvent = (event) => {
+    expect(event).toEqual(mockEvent)
+    return 'mockemittedevent'
+  }
 
-  const finalCallback = (err, data) => {
-    expect(data).toEqual(JSON.parse(result))
+  const GatewayService = require('../service')
+  const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
+  service.extractAuthenticationToken = mockExtractAuthenticationToken
+  service.extractJwt = mockExtractJwt
+  service.validateEventBody = mockValidateEventBody
+  service.processEvent = mockProcessEvent
+  service.processRequest(mockEvent)
+  expect(service.jwt).toEqual('mockjwt')
+  expect(service.emittedEvent).toEqual('mockemittedevent')
+})
+
+test('validateEventBody throws error if event or event.body is empty', () => {
+  const mockEmptyEvent = null
+  const mockEmptyEventBody = {}
+  const mockValidEvent = { body: { hasproperties: true } }
+  const GatewayService = require('../service')
+  const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
+  expect(() => service.validateEventBody(mockEmptyEvent)).toThrow()
+  expect(() => service.validateEventBody(mockEmptyEventBody)).toThrow()
+  service.validateEventBody(mockValidEvent)
+})
+
+test('processEvent extracts event data and accounts for results from azure functions', () => {
+  const mockEventBody = { hasProperties: true }
+  const mockEventAzure = { body: JSON.stringify(JSON.stringify(mockEventBody)) }
+  const mockEventOther = { body: JSON.stringify(mockEventBody) }
+  const GatewayService = require('../service')
+  const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
+  expect(service.processEvent(mockEventAzure)).toEqual(mockEventBody)
+  expect(service.processEvent(mockEventOther)).toEqual(mockEventBody)
+})
+
+test('proxyRequest initiates proxy sequence', (done) => {
+  const mockCallback = () => {}
+  function * mockProxyRequestSequence (finalcallback, sequenceCallback) {
+    expect(finalcallback).toEqual(mockCallback)
+    expect(typeof sequenceCallback).toEqual('function')
+    done()
+  }
+  const GatewayService = require('../service')
+  const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
+  service.proxyRequestSequence = mockProxyRequestSequence
+  service.proxyRequest(mockCallback)
+})
+
+test('proxyRequestSequence authorizes the requests then proxies it to the appropriate handler', (done) => {
+  const mockResult = 'mockresult'
+  const mockUserData = {
+    hasProperties: true
+  }
+  const mockFinalCallback = (err, data) => {
     expect(err).toBeNull()
+    expect(data).toEqual('mockresult')
     done()
   }
-
-  service.proxy({type: 'TEST_ANONYMOUS', payload: {}}, true, finalCallback)
-})
-
-test('proxy function will spawn process for local provider and return error if status is false', (done) => {
-  const service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  service.services = serviceconfig
-  service.credentials = credentialconfig
-
-  // mock function invocation result (note real result will be in bytes)
-  const result = JSON.stringify({status: false, errors: {message: 'Payload goes in the error field', code: 403}})
-  // mock EventEmitter
-  const onMock = (eventName, callback) => callback(result)
-  // mock the spawn function
-  service.spawn = (command, args, options) => ({stdout: {on: onMock}, on: onMock})
-
-  const finalCallback = (err, data) => {
-    expect(err).toEqual(JSON.parse(result).errors)
-    expect(data).toBeUndefined()
-    done()
+  const mockAuthorize = () => {
+    return mockUserData
+  }
+  const mockProxy = (userData, sequenceCallback) => {
+    expect(userData).toEqual(mockUserData)
+    setTimeout(() => sequenceCallback(null, mockResult), 10)
+  }
+  const mockValidateSuccessStatus = (result, finalCallback) => {
+    expect(result).toEqual(mockResult)
+    expect(finalCallback).toEqual(mockFinalCallback)
   }
 
-  service.proxy({type: 'TEST_ANONYMOUS', payload: {}}, true, finalCallback)
+  const GatewayService = require('../service')
+  const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
+  service.authorize = mockAuthorize
+  service.proxy = mockProxy
+  service.valiateSuccessStatus = mockValidateSuccessStatus
+  utilities.initiateHandledSequence((finalCallback, sequenceCallback) => service.proxyRequestSequence(finalCallback, sequenceCallback), mockFinalCallback)
 })
 
-test('proxy function will use AWS SDK to invoke aws:lambda provider and return payload if status is true', (done) => {
-  const service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  service.services = serviceconfig
-  service.credentials = credentialconfig
+test('authorize gets the security for the service and the user credentials then passes them to the validateAuthorization method', () => {
+  const mockUserData = { hasProperties: 'userdata' }
+  const mockEventType = { hasProperties: 'eventtype' }
+  const mockStage = 'mockstage'
+  const mockJsonWebToken = { hasProperties: 'jsonwebtoken' }
+  const mockSecurity = ['MOCK_ROLES']
+  const mockCredentials = { hasProperties: 'mockcredentials' }
+  const mockJwt = 'mockjwt'
 
-  // mock function invocation result (note real result will be in bytes)
-  const result = {Payload: {status: true, result: {message: 'Payload'}}}
-  // mock Lambda.invoke
-  const invokeMock = (options, callback) => callback(null, result)
-
-  // mock the AWS.Lambda function
-  service.AWS = {Lambda: function (region) { return ({invoke: invokeMock}) }}
-
-  const finalCallback = (err, data) => {
-    expect(err).toBeNull()
-    expect(data).toEqual(result.Payload)
-    done()
+  const mockGetServiceValue = (eventType, stage, value, defaultValue) => {
+    expect(eventType).toEqual(mockEventType)
+    expect(stage).toEqual(mockStage)
+    expect(value).toEqual('security')
+    expect(defaultValue).toEqual([])
+    return mockSecurity
   }
 
-  service.proxy({type: 'TEST_LAMBDA', payload: {}}, true, finalCallback)
-})
-
-test('Constructor will set stage when passed as argument', () => {
-  const service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  expect(service.stage).toBe('test')
-})
-
-test('Credentials and Services are properly defined', () => {
-  const service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  service.services = serviceconfig
-  service.credentials = credentialconfig
-  expect(service.credentials).not.toBeUndefined()
-  expect(service.services).not.toBeUndefined()
-  expect(service.credentials.get('environments')).not.toBeUndefined()
-  expect(service.services.get('environments')).not.toBeUndefined()
-  expect(service.credentials.getIn(['environments', service.stage])).not.toBeUndefined()
-  expect(service.credentials.getIn(['environments', service.stage, 'jwtKeySecret'])).not.toBeUndefined()
-  expect(service.services.getIn(['environments', service.stage])).not.toBeUndefined()
-  expect(service.services.getIn(['environments', service.stage, 'provider'])).not.toBeUndefined()
-  expect(service.credentials.getIn(['environments', service.stage, 'provider'])).not.toBeUndefined()
-  expect(service.services.getIn(['environments', service.stage, 'configuration'])).not.toBeUndefined()
-  expect(service.credentials.getIn(['environments', service.stage, 'configuration'])).not.toBeUndefined()
-})
-
-test('authorize function will reject invalid jwt', (done) => {
-  const service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  service.services = serviceconfig
-  service.credentials = credentialconfig
-
-  const callback = (err, data) => {
-    expect(err).not.toBeNull()
-    expect(err).not.toBeUndefined()
-    expect(data).toBeUndefined()
-    done()
+  const mockExtractUserDataFromJwt = (jwt, stage, jsonwebtoken, credentials) => {
+    expect(jwt).toEqual(mockJwt)
+    expect(stage).toEqual(mockStage)
+    expect(jsonwebtoken).toEqual(mockJsonWebToken)
+    expect(credentials).toEqual(mockCredentials)
+    return mockUserData
   }
 
-  service.authorize({type: 'AUTHORIZE', payload: {jwt: 'fake'}}, 'fake', callback)
+  const mockValidateAuthorization = (eventType, security, userAuthData) => {
+    expect(eventType).toEqual(mockEventType)
+    expect(security).toEqual(mockSecurity)
+    expect(userAuthData).toEqual(userAuthData)
+  }
+  const GatewayService = require('../service')
+  const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
+  service.validateAuthorization = mockValidateAuthorization
+  service.extractUserDataFromJwt = mockExtractUserDataFromJwt
+  service.getServiceValue = mockGetServiceValue
+  expect(service.authorize(mockEventType, mockJwt, mockStage, mockJsonWebToken, mockCredentials)).toEqual(mockUserData)
 })
 
-test('authorize function will accept valid jwt and authorized role', (done) => {
-  const service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  const userdata = {username: 'test', roles: ['TEST']}
-  service.services = serviceconfig
-  service.credentials = credentialconfig
-
-  const callback = (err, data) => {
-    expect(data).not.toBeUndefined()
-    expect(err).toBeNull()
-    done()
+test('extractUserDataFromJwt returns null if jwt is empty, otherwise uses jsonwebtoken library to decode jwt', () => {
+  const mockJwt = 'mockjwt'
+  const mockStage = 'mockstage'
+  const mockUserData = { hasProperties: true }
+  const mockKeySecret = 'mockkeysecret'
+  const mockCredentials = {
+    getIn: (keys, defaultValue) => {
+      expect(keys).toEqual(['environments', mockStage, 'jwtKeySecret'])
+      expect(defaultValue).toEqual('')
+      return mockKeySecret
+    }
+  }
+  const mockJsonWebToken = {
+    verify: (jwt, keySecret) => {
+      expect(jwt).toEqual(mockJwt)
+      expect(keySecret).toEqual(mockKeySecret)
+      return true
+    },
+    decode: (jwt) => {
+      expect(jwt).toEqual('mockjwt')
+      return mockUserData
+    }
   }
 
-  const jwt = jsonwebtoken.sign(userdata, service.credentials.getIn(['environments', service.stage, 'jwtKeySecret']))
-  service.authorize({type: 'TEST', payload: {}}, jwt, callback)
+  const GatewayService = require('../service')
+  const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
+  expect(service.extractUserDataFromJwt(null, mockStage, mockJsonWebToken, mockCredentials)).toEqual(null)
+  expect(service.extractUserDataFromJwt(mockJwt, mockStage, mockJsonWebToken, mockCredentials)).toEqual(mockUserData)
 })
 
-test('authorize function will reject jwt when user doesnt have the proper role access', (done) => {
-  const service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  const userdata = {username: 'test', roles: ['NO_ACCESS']}
-  service.services = serviceconfig
-  service.credentials = credentialconfig
-
-  const callback = (err, data) => {
-    expect(data).toBeNull()
-    expect(err).not.toBeNull()
-    expect(err).not.toBeUndefined()
-    done()
+test('validateAuthorization throws error if role is not authorized, otherwise returns user auth data', () => {
+  const mockEventType = 'mockeventtype'
+  const mockSecurity = ['MOCKROLES']
+  const mockUserRoles = ['MOCKROLES']
+  const mockUserAuthData = { roles: mockUserRoles }
+  const mockRoleIsAuthorized = (security, userRoles) => {
+    expect(security).toEqual(mockSecurity)
+    expect(userRoles).toEqual(mockUserRoles)
+    return true
   }
 
-  const jwt = jsonwebtoken.sign(userdata, service.credentials.getIn(['environments', service.stage, 'jwtKeySecret']))
-  service.authorize({type: 'TEST', payload: {}}, jwt, callback)
-})
-
-test('authorize function will reject expired jwt', (done) => {
-  const service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  const userdata = {username: 'test', roles: ['TEST']}
-  service.services = serviceconfig
-  service.credentials = credentialconfig
-
-  const callback = (err, data) => {
-    expect(data).toBeUndefined()
-    expect(err).not.toBeNull()
-    expect(err).not.toBeUndefined()
-    done()
+  const mockRoleIsUnauthorized = (security, userRoles) => {
+    expect(security).toEqual(mockSecurity)
+    expect(userRoles).toEqual(mockUserRoles)
+    return false
   }
 
-  const jwt = jsonwebtoken.sign(userdata, service.credentials.getIn(['environments', service.stage, 'jwtKeySecret']), {expiresIn: '-1d'})
-  service.authorize({type: 'TEST', payload: {}}, jwt, callback)
+  const GatewayService = require('../service')
+  const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
+  service.roleIsAuthorized = mockRoleIsUnauthorized
+  expect(() => service.validateAuthorization(mockEventType, mockSecurity, mockUserAuthData)).toThrow()
+  service.roleIsAuthorized = mockRoleIsAuthorized
+  expect(service.validateAuthorization(mockEventType, mockSecurity, mockUserAuthData)).toEqual(mockUserAuthData)
 })
 
-test('authorize function will reject jwt with invalid signature', (done) => {
-  const service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  const userdata = {username: 'test', roles: ['TEST']}
-  service.services = serviceconfig
-  service.credentials = credentialconfig
-
-  const callback = (err, data) => {
-    expect(data).toBeUndefined()
-    expect(err).not.toBeNull()
-    expect(err).not.toBeUndefined()
-    done()
-  }
-
-  const jwt = jsonwebtoken.sign(userdata, 'fakekey')
-  service.authorize({type: 'TEST', payload: {}}, jwt, callback)
+test('roleIsAuthorized returns true if security allows anonymous access or user has permitted role', () => {
+  const mockAnonymousSecurity = ['ROLE_ANONYMOUS']
+  const mockUserAccessRole = ['ROLE_PERMITTED']
+  const mockUserNoAccessRole = ['ROLE_DENIED']
+  const mockSecurityRole = ['ROLE_PERMITTED']
+  const GatewayService = require('../service')
+  const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
+  expect(service.roleIsAuthorized(mockAnonymousSecurity)).toBeTruthy()
+  expect(service.roleIsAuthorized(mockAnonymousSecurity, mockUserAccessRole)).toBeTruthy()
+  expect(service.roleIsAuthorized(mockAnonymousSecurity, mockUserNoAccessRole)).toBeTruthy()
+  expect(service.roleIsAuthorized()).not.toBeTruthy()
+  expect(service.roleIsAuthorized(mockSecurityRole, mockUserNoAccessRole)).not.toBeTruthy()
+  expect(service.roleIsAuthorized(mockSecurityRole, mockUserAccessRole)).toBeTruthy()
 })
 
-test('authorize function will authorize events with anonymous access even when jwt not provided', (done) => {
-  const service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  service.services = serviceconfig
-  service.credentials = credentialconfig
-
-  const callback = (err, data) => {
-    expect(data).toBe(true)
-    expect(err).toBeNull()
-    done()
-  }
-
-  service.authorize({type: 'TEST_ANONYMOUS', payload: {}}, '', callback)
-})
-
-test('authorize function will authorize events with anonymous access when jwt valid', (done) => {
-  const service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  const userdata = {username: 'test', roles: ['TEST']}
-  service.services = serviceconfig
-  service.credentials = credentialconfig
-
-  const callback = (err, data) => {
-    expect(data).not.toBeUndefined()
-    expect(err).toBeNull()
-    done()
-  }
-
-  const jwt = jsonwebtoken.sign(userdata, service.credentials.getIn(['environments', service.stage, 'jwtKeySecret']), {expiresIn: '1d'})
-  service.authorize({type: 'TEST_ANONYMOUS', payload: {}}, jwt, callback)
-})
-
-test('service will prepare an access denied response when function invoked', () => {
-  process.env.PROVIDER = 'aws'
-  let service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  let response = service.prepareAccessDeniedResponse()
-  expect(response.headers).not.toBeUndefined()
-  expect(response.statusCode).toEqual(403)
-  expect(response.body).toEqual('{"status":false,"errors":{"code":403,"message":"Access denied"}}')
-  process.env.PROVIDER = 'azure'
-  service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  response = service.prepareAccessDeniedResponse()
-  expect(response.headers).not.toBeUndefined()
-  expect(response.status).toEqual(403)
-  expect(response.body).toEqual('{"status":false,"errors":{"code":403,"message":"Access denied"}}')
-})
-
-test('service will prepare a success response when function invoked with data', () => {
-  process.env.PROVIDER = 'aws'
-  let service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  const mockData = {somedata: 'sometestdata'}
-  let response = service.prepareSuccessResponse(mockData)
-  expect(response.headers).not.toBeUndefined()
-  expect(response.statusCode).toEqual(200)
-  expect(response.body).toEqual(JSON.stringify(mockData))
-  process.env.PROVIDER = 'azure'
-  service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  response = service.prepareSuccessResponse(mockData)
-  expect(response.headers).not.toBeUndefined()
-  expect(response.status).toEqual(200)
-  expect(response.body).toEqual(JSON.stringify(mockData))
-})
-
-test('service will prepare an error response properly when error passed in', () => {
-  process.env.PROVIDER = 'aws'
-  let service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  let response = service.prepareErrorResponse(new Error('mock error'))
-  expect(response.headers).not.toBeUndefined()
-  expect(response.statusCode).toEqual(500)
-})
-
-test('all branches of extracting error message from response', () => {
-  const service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  let message = ''
-  let mockError1
-  let mockError2 = {message: 'test message'}
-  let mockError3 = {errors: {message: 'test message'}}
-  let mockError4 = {}
-  let mockError5 = 'test message'
-
-  message = service.extractErrorMessageFromResponse(mockError1, 'default')
-  expect(message).toEqual('default')
-  message = service.extractErrorMessageFromResponse(mockError2)
-  expect(message).toEqual('test message')
-  message = service.extractErrorMessageFromResponse(mockError3)
-  expect(message).toEqual('test message')
-  message = service.extractErrorMessageFromResponse(mockError4)
-  expect(message).toEqual('Unexpected Error.')
-  message = service.extractErrorMessageFromResponse(mockError5)
-  expect(message).toEqual('test message')
-})
-
-test('all branches of extracting error codes from response', () => {
-  const service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  let code = -1
-  let mockError1 = { code: 403 }
-  let mockError2 = { errors: { code: 403 } }
-  let mockError3 = { code: undefined }
-  let mockError4 = { code: 'not a number' }
-  let mockError5 = 'test message'
-  let mockError6 = { errors: { code: {} } }
-
-  code = service.extractErrorCodeFromResponse(mockError1)
-  expect(code).toEqual(403)
-  code = service.extractErrorCodeFromResponse(mockError2)
-  expect(code).toEqual(403)
-  code = service.extractErrorCodeFromResponse(mockError3)
-  expect(code).toEqual(500)
-  code = service.extractErrorCodeFromResponse(mockError4, 401)
-  expect(code).toEqual(401)
-  code = service.extractErrorCodeFromResponse(mockError5)
-  expect(code).toEqual(500)
-  code = service.extractErrorCodeFromResponse(mockError6)
-  expect(code).toEqual(500)
-  code = service.extractErrorCodeFromResponse()
-  expect(code).toEqual(500)
-})
-
-test('role access returns the role access specified in configuration or an empty array by default', () => {
-  const service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  let security = service.getRoleAccess('undefined service')
-  expect(security).toEqual([])
-  security = service.getRoleAccess('TEST')
-  expect(security).toEqual(serviceconfig.getIn(['environments', 'test', 'configuration', 'TEST', 'security']))
-  security = service.getRoleAccess('DEFAULT_SECURITY')
-  expect(security).toEqual([])
-})
-
-test('extracting jwt from headers', () => {
-  const service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  let authenticationHeader = service.extractAuthenticationToken({ 'Authorization': 'Bearer: jwttoken' })
-  const mockHeaderWithoutAuth = {'Content-Type': 'application/json'}
-  let token = service.extractJwt(authenticationHeader)
-  expect(token).toEqual('jwttoken')
-  authenticationHeader = service.extractAuthenticationToken(mockHeaderWithoutAuth)
-  expect(authenticationHeader).toBeNull()
-  token = service.extractJwt()
-  expect(token).toBeNull()
-  authenticationHeader = service.extractAuthenticationToken()
-  expect(authenticationHeader).toBeNull()
-})
-
-test('default settings for AWS properties', () => {
-  process.env.PROVIDER = 'aws'
-  const service = new GatewayService('test2', './test/credentials.json', './test/services.json')
-  expect(service.account).toEqual('')
-  expect(service.region).toEqual('')
-})
-
-test('aws lambda invocation returns a payload on callback or defaults to null', () => {
-  let mockResultData
-  const invokeMock = (params, callback) => callback(null, mockResultData)
-  const mockLambda = function (region) { return ({invoke: invokeMock}) }
-  let mockInvocationCallback = (err, data) => {
-    expect(err).toBeNull()
-    expect(data).toBeNull()
-  }
-  let service = new GatewayService('test2', './test/credentials.json', './test/services.json')
-  service.functionInvocationCallback = mockInvocationCallback
-  service.AWS = { Lambda: mockLambda }
-  service.invokeLambda()
-  mockResultData = { nopayload: 'nopayload' }
-  service.invokeLambda()
-  mockResultData = { Payload: 'payload' }
-  mockInvocationCallback = (err, data) => {
-    expect(err).toBeNull()
-    expect(data).not.toBeUndefined()
-    expect(data).toEqual('payload')
-  }
-  service.functionInvocationCallback = mockInvocationCallback
-  service.invokeLambda()
-})
-
-test('function invocation callback parses data if it is a string and handles errors', (done) => {
-  let service = new GatewayService('test2', './test/credentials.json', './test/services.json')
-  let mockProxyCallback = (err, data) => {
-    expect(err).toBeNull()
-    expect(data).not.toBeUndefined()
-  }
-  service.functionInvocationCallback(null, '{"status":true,"data":"test"}', mockProxyCallback)
-  mockProxyCallback = (err, data) => {
-    expect(err).not.toBeNull()
-  }
-  service.functionInvocationCallback(new Error('test error'), null, mockProxyCallback)
-  service.functionInvocationCallback(null, {status: false, errors: new Error('test error')}, mockProxyCallback)
-  mockProxyCallback = (err, data) => {
-    expect(err).not.toBeNull()
-    expect(err).not.toBeUndefined()
-    done()
-  }
-  service.functionInvocationCallback(null, JSON.stringify({status: false, errors: new Error('test error')}), mockProxyCallback)
-})
-
-test('invokeAzureHttp invokes request on url', (done) => {
-  const service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  const mockCallback = () => done()
-  const mockPayload = {}
-  const mockUrl = 'http://mockurl'
-  const mockFunctionInvocationCallback = (error, response, proxyCallback, parse) => {
-    proxyCallback(error, response)
-  }
-  const mockRequest = (params, requestCallback) => {
-    requestCallback(null, '{}')
-  }
-  service.functionInvocationCallback = mockFunctionInvocationCallback
-  service.request = mockRequest
-  service.invokeViaAzureHttp(mockCallback, mockPayload, mockUrl)
-})
-
-test('constructor doesn\'t initialize aws variables when provider is azure', () => {
-  process.env.PROVIDER = 'azure'
-  const service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  expect(service.account).toBeUndefined()
-  expect(service.region).toBeUndefined()
-})
-
-test('proxy calls azure http invocation routine when aws:http is specified as the service provider', (done) => {
-  const service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  const mockServices = immutable.fromJS({ environments: { test: { configuration: { 'TEST': { provider: 'azure:http' } } } } })
-  const mockInvocation = () => done()
-  const mockCallback = () => ({})
-  service.invokeViaAzureHttp = mockInvocation
-  service.services = mockServices
-  service.proxy({ type: 'TEST', payload: {} }, true, mockCallback)
-})
-
-test('function invocation callback handles errors properly when thrown', (done) => {
-  const service = new GatewayService('test', './test/credentials.json', './test/services.json')
-  const mockUtilities = {
-    isEmpty: () => { throw new Error('Test error') }
-  }
+test('proxy routes invalid provider error to callback', (done) => {
+  const mockPayload = { hasProperties: 'mockpayload' }
+  const mockServiceEvent = { payload: mockPayload }
+  const mockStage = 'mockstage'
+  const mockFuncName = 'mockfuncname'
+  const mockFolder = 'mockfolder'
+  const mockShell = 'mockshell'
+  const mockServiceName = 'mockservicename'
+  const mockAccount = 'mockAccount'
+  const mockRegion = 'mockRegion'
   const mockCallback = (err, data) => {
-    expect(err).not.toBeUndefined()
-    expect(err.message).toEqual('Test error')
+    expect(err).toEqual(new Error('Invalid provider'))
     expect(data).toBeUndefined()
     done()
   }
-  service.utilities = mockUtilities
-  service.functionInvocationCallback(null, null, mockCallback, false)
+  const GatewayService = require('../service')
+  const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
+  service.proxy(null, mockCallback, null, mockStage, mockServiceEvent, mockServiceName, mockFolder, mockFuncName, mockShell, mockAccount, mockRegion)
+})
+
+test('proxy routes aws provider to aws invocation handler', (done) => {
+  const mockCallback = () => {}
+  const mockPayload = { hasProperties: 'mockpayload' }
+  const mockServiceEvent = { payload: mockPayload }
+  const mockStage = 'mockstage'
+  const mockFuncName = 'mockfuncname'
+  const mockFolder = 'mockfolder'
+  const mockShell = 'mockshell'
+  const mockServiceName = 'mockservicename'
+  const mockAccount = 'mockAccount'
+  const mockRegion = 'mockRegion'
+  const mockInvokeLocalFunctionSequence = (proxyCallback, payload, func, folder, shell) => {
+    throw new Error('Incorrect handler')
+  }
+  const mockInvokeViaAzureHttpSequence = (proxyCallback, payload, func) => {
+    throw new Error('Incorrect handler')
+  }
+  function * mockInvokeLamdaSequence (proxyCallback, payload, stage, func, serviceName, account, region) {
+    expect(proxyCallback).toEqual(mockCallback)
+    expect(payload).toEqual(mockPayload)
+    expect(stage).toEqual(mockStage)
+    expect(func).toEqual(mockFuncName)
+    expect(serviceName).toEqual(mockServiceName)
+    expect(account).toEqual(mockAccount)
+    expect(region).toEqual(mockRegion)
+    done()
+  }
+
+  const GatewayService = require('../service')
+  const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
+  service.invokeLambdaSequence = mockInvokeLamdaSequence
+  service.invokeLocalFunctionSequence = mockInvokeLocalFunctionSequence
+  service.invokeViaAzureHttpSequence = mockInvokeViaAzureHttpSequence
+  service.proxy(null, mockCallback, 'aws:lambda', mockStage, mockServiceEvent, mockServiceName, mockFolder, mockFuncName, mockShell, mockAccount, mockRegion)
+})
+
+test('proxy routes azure provider to azure invocation handler', (done) => {
+  const mockCallback = () => {}
+  const mockPayload = { hasProperties: 'mockpayload' }
+  const mockServiceEvent = { payload: mockPayload }
+  const mockStage = 'mockstage'
+  const mockFuncName = 'mockfuncname'
+  const mockFolder = 'mockfolder'
+  const mockShell = 'mockshell'
+  const mockServiceName = 'mockservicename'
+  const mockAccount = 'mockAccount'
+  const mockRegion = 'mockRegion'
+  function * mockInvokeLocalFunctionSequence (proxyCallback, payload, func, folder, shell) {
+    throw new Error('Incorrect handler')
+  }
+  function * mockInvokeViaAzureHttpSequence (proxyCallback, payload, func) {
+    expect(proxyCallback).toEqual(mockCallback)
+    expect(payload).toEqual(mockPayload)
+    expect(func).toEqual(mockFuncName)
+    done()
+  }
+  function * mockInvokeLamdaSequence (proxyCallback, payload, stage, func, serviceName, account, region) {
+    throw new Error('Incorrect handler')
+  }
+
+  const GatewayService = require('../service')
+  const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
+  service.invokeLambdaSequence = mockInvokeLamdaSequence
+  service.invokeLocalFunctionSequence = mockInvokeLocalFunctionSequence
+  service.invokeViaAzureHttpSequence = mockInvokeViaAzureHttpSequence
+  service.proxy(null, mockCallback, 'azure:http', mockStage, mockServiceEvent, mockServiceName, mockFolder, mockFuncName, mockShell, mockAccount, mockRegion)
+})
+
+test('proxy routes local provider to local invocation handler', (done) => {
+  const mockCallback = () => {}
+  const mockPayload = { hasProperties: 'mockpayload' }
+  const mockServiceEvent = { payload: mockPayload }
+  const mockStage = 'mockstage'
+  const mockFuncName = 'mockfuncname'
+  const mockFolder = 'mockfolder'
+  const mockShell = 'mockshell'
+  const mockServiceName = 'mockservicename'
+  const mockAccount = 'mockAccount'
+  const mockRegion = 'mockRegion'
+  function * mockInvokeLocalFunctionSequence (proxyCallback, payload, func, folder, shell) {
+    expect(proxyCallback).toEqual(mockCallback)
+    expect(payload).toEqual(mockPayload)
+    expect(func).toEqual(mockFuncName)
+    expect(folder).toEqual(mockFolder)
+    expect(shell).toEqual(mockShell)
+    done()
+  }
+  function * mockInvokeViaAzureHttpSequence (proxyCallback, payload, func) {
+    throw new Error('Incorrect handler')
+  }
+  function * mockInvokeLamdaSequence (proxyCallback, payload, stage, func, serviceName, account, region) {
+    throw new Error('Incorrect handler')
+  }
+
+  const GatewayService = require('../service')
+  const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
+  service.invokeLambdaSequence = mockInvokeLamdaSequence
+  service.invokeLocalFunctionSequence = mockInvokeLocalFunctionSequence
+  service.invokeViaAzureHttpSequence = mockInvokeViaAzureHttpSequence
+  service.proxy(null, mockCallback, 'local', mockStage, mockServiceEvent, mockServiceName, mockFolder, mockFuncName, mockShell, mockAccount, mockRegion)
+})
+
+test('invokeViaAzureHttpSequence makes an http request to azure function and passes result through callback', (done) => {
+  const mockBody = { hasProperties: 'mockbody' }
+  const mockBodyStringified = JSON.stringify(mockBody)
+  const mockFunc = 'mockfunc'
+  const mockPayload = { hasProperties: 'mockpayload' }
+
+  const mockCallback = (err, data) => {
+    expect(err).toBeNull()
+    expect(data).toEqual(mockBody)
+    done()
+  }
+  const mockRequest = (parameters, callback) => {
+    expect(parameters.url).toEqual(mockFunc)
+    expect(parameters.json).toBeTruthy()
+    expect(parameters.body).toEqual(mockPayload)
+    expect(typeof callback).toEqual('function')
+    setTimeout(() => callback(null, null, mockBodyStringified), 10)
+  }
+
+  const GatewayService = require('../service')
+  const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
+  utilities.initiateSequence(service.invokeViaAzureHttpSequence(mockCallback, mockPayload, mockFunc, mockRequest), mockCallback)
+})
+
+test('invokeLambdaSequence makes an SDK request to aws lambda and passes result through callback', (done) => {
+  const mockPayloadResponse = { hasProperties: true }
+  const mockBody = { Payload: JSON.stringify(mockPayloadResponse) }
+  const mockFunc = 'mockfunc'
+  const mockPayload = { hasProperties: 'mockpayload' }
+  const mockStage = 'mockstage'
+  const mockServiceName = 'mockservicename'
+  const mockAccount = 'mockaccount'
+  const mockRegion = 'mockregion'
+  const mockAppName = 'mockappname'
+  const mockCallback = (err, data) => {
+    expect(err).toBeNull()
+    expect(data).toEqual(mockPayloadResponse)
+    done()
+  }
+
+  const mockAWS = {
+    Lambda: class {
+      constructor () {
+        return {
+          invoke: (parameters, sequenceCallback) => {
+            expect(parameters.FunctionName).toEqual(`${mockAccount}:${mockAppName}-${mockServiceName}-${mockStage}-${mockFunc}`)
+            expect(parameters.Payload).toEqual(JSON.stringify(mockPayload, null, 2))
+            setTimeout(() => sequenceCallback(null, mockBody), 10)
+          }
+        }
+      }
+    }
+  }
+  const mockParameters = {
+    get: (value) => {
+      expect(value).toEqual('appName')
+      return mockAppName
+    }
+  }
+
+  const GatewayService = require('../service')
+  const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
+  utilities.initiateSequence(service.invokeLambdaSequence(mockCallback, mockPayload, mockStage, mockFunc, mockServiceName, mockAccount, mockRegion, mockAWS, mockParameters), mockCallback)
+})
+
+test('invokeLocalFunctionSequence uses yarn to call serverless invoke local', (done) => {
+  const mockResponse = { hasProperties: 'mockresponse' }
+  const mockFunc = 'mockfunc'
+  const mockPayload = { hasProperties: 'mockpayload' }
+  const mockFolder = 'mockfolder'
+  const mockShell = 'mockshell'
+  const mockBytes = {
+    toString: (encoding) => {
+      expect(encoding).toEqual('utf8')
+      return JSON.stringify(mockResponse)
+    }
+  }
+  const mockStdioOptions = {
+    stdio: 'pipe',
+    cwd: mockFolder,
+    shell: true
+  }
+  const mockInvocation = {
+    stdout: {
+      on: (eventName, lambda) => {
+        expect(eventName).toEqual('data')
+        setTimeout(() => lambda(mockBytes), 10)
+      }
+    },
+    on: (eventName, lambda) => {
+      expect(eventName).toEqual('close')
+      setTimeout(() => lambda(null), 20)
+    }
+  }
+  const mockSpawnNotPowershell = (command, args, stdioOptions) => {
+    expect(command).toEqual(`./node_modules/.bin/sls invoke local -f ${mockFunc} -d '{"hasProperties":"mockpayload"}'`)
+    expect(args).toEqual([])
+    expect(stdioOptions).toEqual(mockStdioOptions)
+    return mockInvocation
+  }
+  const mockSpawnPowershell = (command, args, stdioOptions) => {
+    expect(command).toEqual(`powershell.exe -Command ./node_modules/.bin/sls invoke local -f ${mockFunc} -d '{\\\\\\"hasProperties\\\\\\":\\\\\\"mockpayload\\\\\\"}'`)
+    expect(args).toEqual([])
+    expect(stdioOptions).toEqual(mockStdioOptions)
+    return mockInvocation
+  }
+
+  const mockCallback = (err, data) => {
+    expect(err).toBeNull()
+    expect(data).toEqual(mockResponse)
+  }
+
+  const mockCallbackFinal = (err, data) => {
+    expect(err).toBeNull()
+    expect(data).toEqual(mockResponse)
+    done()
+  }
+  const GatewayService = require('../service')
+  const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
+  utilities.initiateSequence(service.invokeLocalFunctionSequence(mockCallback, mockPayload, mockFunc, mockFolder, mockShell, mockSpawnNotPowershell), mockCallback)
+  utilities.initiateSequence(service.invokeLocalFunctionSequence(mockCallbackFinal, mockPayload, mockFunc, mockFolder, 'powershell', mockSpawnPowershell), mockCallbackFinal)
+})
+
+test('extractErrorMessageForResponse should extract the message from error object if it exists', () => {
+  const mockError = new Error('test error')
+  const mockDefaultMessage = 'mockdefaultmessage'
+  const mockStage = 'mockstage'
+  const GatewayService = require('../service')
+  const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
+  expect(service.extractErrorMessageForResponse(mockError, mockDefaultMessage, mockStage)).toEqual('test error')
+  expect(service.extractErrorMessageForResponse(mockError, mockDefaultMessage, 'development')).toEqual(mockError.stack)
+  expect(service.extractErrorMessageForResponse({}, mockDefaultMessage, mockStage)).toEqual(mockDefaultMessage)
+})
+
+test('extractAuthenticationToken should return the Authorization header if it exists in the object passed in', () => {
+  const mockHeaderData = {
+    Authorization: 'mockauthorization'
+  }
+  const GatewayService = require('../service')
+  const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
+  expect(service.extractAuthenticationToken(mockHeaderData)).toEqual('mockauthorization')
+})
+
+test('extractJwt should return the jwt token if it exists in the string as a standard bearer token', () => {
+  const mockAuthorization = 'Bearer: mockjwt'
+  const GatewayService = require('../service')
+  const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
+  expect(service.extractJwt(mockAuthorization)).toEqual('mockjwt')
+  expect(service.extractJwt()).toBeNull()
+})
+
+test('prepareErrorResponse will return a proper http response, even when the provider is azure', () => {
+  const mockAwsResponse = {
+    statusCode: 403,
+    body: '{"status":false,"errors":{"message":"test error"}}',
+    headers: {
+      'Access-Control-Allow-Credentials': true,
+      'Access-Control-Allow-Origin': '*',
+      'Content-Type': 'application/json'
+    },
+    'isBase64Encoded': false
+  }
+  const mockAzureResponse = {
+    status: 403,
+    body: '{"status":false,"errors":{"message":"test error"}}',
+    headers: {
+      'Access-Control-Allow-Credentials': true,
+      'Access-Control-Allow-Origin': '*',
+      'Content-Type': 'application/json'
+    },
+    'isBase64Encoded': false
+  }
+
+  const mockError = new Error('test error')
+  const mockProvider = 'mockprovider'
+  const mockAzureProvider = 'azure'
+  const GatewayService = require('../service')
+  const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
+  expect(service.prepareErrorResponse(mockError, mockProvider, mockAwsResponse)).toEqual(mockAwsResponse)
+  expect(service.prepareErrorResponse(mockError, mockAzureProvider, mockAzureResponse)).toEqual(mockAzureResponse)
+})
+
+test('prepareSuccessResponse will return a proper http response, even when the provider is azure', () => {
+  const mockData = { hasProperties: 'mockdata' }
+
+  const mockAwsResponse = {
+    statusCode: 200,
+    body: JSON.stringify(mockData),
+    headers: {
+      'Access-Control-Allow-Credentials': true,
+      'Access-Control-Allow-Origin': '*',
+      'Content-Type': 'application/json'
+    },
+    'isBase64Encoded': false
+  }
+  const mockAzureResponse = {
+    status: 200,
+    body: JSON.stringify(mockData),
+    headers: {
+      'Access-Control-Allow-Credentials': true,
+      'Access-Control-Allow-Origin': '*',
+      'Content-Type': 'application/json'
+    },
+    'isBase64Encoded': false
+  }
+
+  const mockProvider = 'mockprovider'
+  const mockAzureProvider = 'azure'
+  const GatewayService = require('../service')
+  const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
+  expect(service.prepareSuccessResponse(mockData, mockProvider, mockAwsResponse)).toEqual(mockAwsResponse)
+  expect(service.prepareSuccessResponse(mockData, mockAzureProvider, mockAzureResponse)).toEqual(mockAzureResponse)
+})
+
+test('prepareAccessDeniedResponse will return a proper http response, even when the provider is azure', (done) => {
+  const mockPrepareErrorResponse = (error) => {
+    expect(error).toEqual(new Error('Access denied'))
+    done()
+  }
+  const GatewayService = require('../service')
+  const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
+  service.prepareErrorResponse = mockPrepareErrorResponse
+  service.prepareAccessDeniedResponse()
+})
+
+test('getServiceValue will return property value in services config', () => {
+  const mockEventType = 'mockeventtype'
+  const mockStage = 'mockstage'
+  const mockValue = 'mockvalue'
+  const mockDefaultValue = 'mockdefaltvalue'
+  const mockServices = {
+    getIn: (keys, defaultValue) => {
+      expect(Array.isArray(keys)).toBeTruthy()
+      return true
+    }
+  }
+  const GatewayService = require('../service')
+  const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
+  expect(service.getServiceValue(mockEventType, mockStage, mockValue, mockDefaultValue, mockServices)).toBeTruthy()
+})
+
+test('validateSuccessStatus throws error if invocation response has a false status', () => {
+  const mockResult = { status: false }
+  const mockValidResult = { status: true }
+  const GatewayService = require('../service')
+  const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
+  expect(() => service.validateSuccessStatus(mockResult)).toThrow()
+  service.validateSuccessStatus(mockValidResult)
 })

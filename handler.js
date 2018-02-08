@@ -1,11 +1,11 @@
 'use strict'
-const universalProxy = require('./handler.proxyRequest').proxyRequest
-const awsProxy = (event, context, callback) => universalProxy(event, context, callback)
-const azureProxy = (context, req) => universalProxy(req, context, (err, res) => { context.done(err, res) })
-switch (process.env.PROVIDER) {
-  case 'azure':
-    module.exports.proxyRequest = azureProxy
-    break
-  default:
-    module.exports.proxyRequest = awsProxy
+const utilities = require('@source4society/scepter-utility-lib')
+const genericHandlerFunction = require('@source4society/scepter-handlerutilities-lib').genericHandlerFunction
+
+module.exports.proxyRequest = (event, context, callback, injectedGenericHandler) => {
+  const genericHandler = utilities.valueOrDefault(injectedGenericHandler, genericHandlerFunction)
+  genericHandler(event, context, callback, (service, callbackHandler, errorHandler, successHandler, eventData) => {
+    service.processRequest(event)
+    service.proxyRequest((err, data) => callbackHandler(err, data, errorHandler, successHandler))
+  })
 }

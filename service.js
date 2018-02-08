@@ -1,216 +1,280 @@
 'use strict'
 const immutable = require('immutable')
+const utilities = require('@source4society/scepter-utility-lib')
+const spawnLib = require('child_process').spawn
+const jsonwebtokenLib = require('jsonwebtoken')
+const AWSSDK = require('aws-sdk')
+const requestLib = require('request')
+
 class GatewayService {
-  constructor (stage = 'dev', credentialsPath = process.env.CREDENTIALS_PATH, servicesPath = process.env.SERVICES_PATH, parametersPath = process.env.PARAMETERS_PATH) {
-    const { spawn } = require('child_process')
-    const jsonwebtoken = require('jsonwebtoken')
+  constructor (
+    injectedStage,
+    injectedCredentialsPath,
+    injectedServicesPath,
+    injectedParametersPath,
+    injectedProvider,
+    injectedSpawn,
+    injectedJsonWebToken,
+    injectedRequest,
+    injectedAWS
+  ) {
+    const provider = utilities.valueOrDefault(injectedProvider, process.env.provider)
+    const stage = utilities.valueOrDefault(injectedStage, 'development')
+    const spawn = utilities.valueOrDefault(injectedSpawn, spawnLib)
+    const credentialsPath = utilities.valueOrDefault(injectedCredentialsPath, './credentials.json')
+    const parametersPath = utilities.valueOrDefault(injectedParametersPath, './parameters.json')
+    const servicesPath = utilities.valueOrDefault(injectedServicesPath, './services.json')
+    const jsonwebtoken = utilities.valueOrDefault(injectedJsonWebToken, jsonwebtokenLib)
+    const request = utilities.valueOrDefault(injectedRequest, requestLib)
+    const AWS = utilities.valueOrDefault(injectedAWS, AWSSDK)
     this.credentials = immutable.fromJS(require(credentialsPath))
     this.services = immutable.fromJS(require(servicesPath))
     this.parameters = immutable.fromJS(require(parametersPath))
     this.stage = stage
     this.spawn = spawn
     this.jsonwebtoken = jsonwebtoken
-    this.request = require('request')
-    switch (process.env.PROVIDER) {
-      case 'azure':
-        break
-      case 'aws':
-        this.AWS = require('aws-sdk')
-        this.account = this.credentials.getIn(['environments', this.stage, 'provider', 'aws', 'account'], '')
-        this.region = this.credentials.getIn(['environments', this.stage, 'provider', 'aws', 'region'], '')
-        break
-      default:
-    }
-
-    this.utilities = require('@source4society/scepter-utility-lib')
-
+    this.request = request
+    this.provider = provider
     this.defaultHeaders = {
       'Access-Control-Allow-Origin': '*', // Required for CORS support to work
       'Access-Control-Allow-Credentials': true, // Required for cookies, authorization headers with HTTPS
       'Content-Type': 'application/json'
     }
-
     this.response = {
       headers: this.defaultHeaders,
       isBase64Encoded: false
     }
-  }
-
-  authorize (serviceEvent, jwt, authCallback) {
-    try {
-      const eventType = serviceEvent.type
-      let security = this.getRoleAccess(eventType)
-      let keySecret = null
-      let userAuthData = true
-      let userRoles = []
-      if (!this.utilities.isEmpty(jwt)) {
-        keySecret = this.credentials.getIn(['environments', this.stage, 'jwtKeySecret'], '')
-        this.jsonwebtoken.verify(jwt, keySecret)
-        userAuthData = this.jsonwebtoken.decode(jwt)
-        userRoles = userAuthData.roles
-      }
-
-      if (!this.utilities.isEmpty(security) && ((security.indexOf('ROLE_ANONYMOUS') > -1) || security.some((value) => userRoles.indexOf(value) > -1))) {
-        authCallback(null, userAuthData)
-      } else {
-        authCallback({message: 'Access denied', code: 403}, null)
-      }
-    } catch (err) {
-      authCallback({message: err.message, code: 403})
-    }
-  }
-
-  proxy (serviceEvent, userData, proxyCallback) {
-    const eventType = serviceEvent.type
-    const provider = this.services.getIn(['environments', this.stage, 'configuration', eventType, 'provider'], this.services.getIn(['environments', this.stage, 'provider']))
-    const serviceName = this.services.getIn(['environments', this.stage, 'configuration', eventType, 'serviceName'])
-    const folder = '../' + serviceName
-    const func = this.services.getIn(['environments', this.stage, 'configuration', eventType, 'function'])
-    const shell = this.services.getIn(['environments', this.stage, 'configuration', eventType, 'shell'], '/bin/bash')
-    let payload = serviceEvent.payload
-
-    payload.authenticatedUserData = userData
-
-    switch (provider) {
-      case 'local':
-        this.invokeLocalFunction(proxyCallback, payload, func, folder, shell)
-        break
-      case 'azure:http':
-        this.invokeViaAzureHttp(proxyCallback, payload, func)
-        break
-      case 'aws:lambda':
-        this.invokeLambda(proxyCallback, payload, func, serviceName, this.account, this.region)
+    switch (this.provider) {
+      case 'aws':
+        this.AWS = AWS
+        this.account = this.credentials.getIn(['environments', this.stage, 'provider', 'aws', 'account'], '')
+        this.region = this.credentials.getIn(['environments', this.stage, 'provider', 'aws', 'region'], '')
         break
     }
   }
 
-  invokeViaAzureHttp (proxyCallback, payload, func) {
-    this.request({
-      url: func,
-      json: true,
-      body: payload
-    },
-    (error, response, body) => this.functionInvocationCallback(error, !this.utilities.isEmpty(body) ? body || null : null, proxyCallback, false)
+  processRequest (event) {
+    const authorization = this.extractAuthenticationToken(event.headers)
+    const jwt = this.extractJwt(authorization)
+    this.validateEventBody(event)
+    let emittedEvent = this.processEvent(event)
+    this.jwt = jwt
+    this.emittedEvent = emittedEvent
+    this.emittedEventType = emittedEvent.type
+  }
+
+  validateEventBody (event) {
+    if (utilities.isEmpty(event) || utilities.isEmpty(event.body)) {
+      throw new Error('Event body is undefined')
+    }
+  }
+
+  processEvent (event) {
+    let emittedEvent = JSON.parse(event.body)
+    if (typeof emittedEvent === 'string') {
+      emittedEvent = JSON.parse(emittedEvent) // For azure
+    }
+    return emittedEvent
+  }
+
+  proxyRequest (callback) {
+    utilities.initiateHandledSequence(this.proxyRequestSequence.bind(this), callback)
+  }
+
+  * proxyRequestSequence (finalCallback, sequenceCallback) {
+    const userData = this.authorize()
+    const result = yield this.proxy(userData, sequenceCallback)
+    this.validateSuccessStatus(result, finalCallback)
+    finalCallback(null, result)
+  }
+
+  authorize (injectedEventType, injectedJwt, injectedStage, injectedJsonWebToken, injectedCredentials) {
+    const eventType = utilities.valueOrDefault(injectedEventType, this.emittedEventType)
+    const jwt = utilities.valueOrDefault(injectedJwt, this.jwt)
+    const stage = utilities.valueOrDefault(injectedStage, this.stage)
+    const jsonwebtoken = utilities.valueOrDefault(injectedJsonWebToken, this.jsonwebtoken)
+    const credentials = utilities.valueOrDefault(injectedCredentials, this.credentials)
+    const security = this.getServiceValue(eventType, stage, 'security', [])
+    const userAuthData = this.extractUserDataFromJwt(jwt, stage, jsonwebtoken, credentials)
+    this.validateAuthorization(eventType, security, userAuthData)
+    return userAuthData
+  }
+
+  extractUserDataFromJwt (jwt, stage, injectedJsonWebToken, injectedCredentials) {
+    let keySecret = null
+    let userAuthData = null
+    const jsonwebtoken = utilities.valueOrDefault(injectedJsonWebToken, this.jsonwebtoken)
+    const credentials = utilities.valueOrDefault(injectedCredentials, this.credentials)
+    if (utilities.isEmpty(jwt)) {
+      return null
+    }
+    keySecret = credentials.getIn(['environments', stage, 'jwtKeySecret'], '')
+    jsonwebtoken.verify(jwt, keySecret)
+    userAuthData = jsonwebtoken.decode(jwt)
+    return userAuthData
+  }
+
+  validateAuthorization (eventType, security, injectedUserAuthData) {
+    const userAuthData = utilities.valueOrDefault(injectedUserAuthData, {})
+    const userRoles = userAuthData.roles
+    if (!this.roleIsAuthorized(security, userRoles)) {
+      throw new Error('Access denied')
+    }
+    return userAuthData
+  }
+
+  roleIsAuthorized (injectedSecurity, injectedUserRoles) {
+    const security = utilities.valueOrDefault(injectedSecurity, [])
+    const userRoles = utilities.valueOrDefault(injectedUserRoles, [])
+    return (
+      (!utilities.isEmpty(security) && (security.indexOf('ROLE_ANONYMOUS') > -1)) ||
+      security.some((value) => userRoles.indexOf(value) > -1)
     )
   }
 
-  invokeLambda (proxyCallback, payload, func, serviceName, account, region) {
-    let lambda = new this.AWS.Lambda({region: region})
-    lambda.invoke({
-      FunctionName: account + ':' + this.parameters.get('appName') + '-' + serviceName + '-' + this.stage + '-' + func,
+  proxy (
+    userData,
+    proxyCallback,
+    injectedProvider,
+    injectedStage,
+    injectedServiceEvent,
+    injectedServiceName,
+    injectedFolder,
+    injectedFunction,
+    injectedShell,
+    injectedAccount,
+    injectedRegion,
+    injectedParameters
+  ) {
+    const stage = utilities.valueOrDefault(injectedStage, this.stage)
+    const serviceEvent = utilities.valueOrDefault(injectedServiceEvent, this.emittedEvent)
+    const eventType = serviceEvent.type
+    const parameters = utilities.valueOrDefault(injectedParameters, this.parameters)
+    const provider = utilities.valueOrDefault(injectedProvider, this.getServiceValue(eventType, stage, 'provider'))
+    const serviceName = utilities.valueOrDefault(injectedServiceName, this.getServiceValue(eventType, stage, 'serviceName'))
+    const func = utilities.valueOrDefault(injectedFunction, this.getServiceValue(eventType, stage, 'function'))
+    const shell = utilities.valueOrDefault(injectedShell, parameters.get('shell', '/bin/bash'))
+    const folder = utilities.valueOrDefault(injectedFolder, `../${serviceName}`)
+    let payload = serviceEvent.payload
+    payload.authenticatedUserData = userData
+    switch (provider) {
+      case 'local':
+        utilities.initiateSequence(this.invokeLocalFunctionSequence(proxyCallback, payload, func, folder, shell), proxyCallback)
+        break
+      case 'azure:http':
+        utilities.initiateSequence(this.invokeViaAzureHttpSequence(proxyCallback, payload, func), proxyCallback)
+        break
+      case 'aws:lambda':
+        const account = utilities.valueOrDefault(injectedAccount, this.account)
+        const region = utilities.valueOrDefault(injectedRegion, this.region)
+        utilities.initiateSequence(this.invokeLambdaSequence(proxyCallback, payload, stage, func, serviceName, account, region), proxyCallback)
+        break
+      default:
+        proxyCallback(new Error('Invalid provider'))
+    }
+  }
+
+  * invokeViaAzureHttpSequence (finalCallback, payload, func, injectedRequest) {
+    const request = utilities.valueOrDefault(injectedRequest, this.request)
+    let sequenceCallback = yield
+    const response = yield request({ url: func, json: true, body: payload }, (error, response, body) => sequenceCallback(error, body))
+    const result = JSON.parse(response)
+    finalCallback(null, result)
+  }
+
+  * invokeLambdaSequence (finalCallback, payload, stage, func, serviceName, account, region, injectAWS, injectParameters) {
+    let sequenceCallback = yield
+    const AWS = utilities.valueOrDefault(injectAWS, this.AWS)
+    const parameters = utilities.valueOrDefault(injectParameters, this.parameters)
+    const lambda = new AWS.Lambda({region: region})
+    const response = yield lambda.invoke({
+      FunctionName: `${account}:${parameters.get('appName')}-${serviceName}-${stage}-${func}`,
       Payload: JSON.stringify(payload, null, 2)
-    }, (err, data) => this.functionInvocationCallback(err, !this.utilities.isEmpty(data) ? data.Payload || null : null, proxyCallback, false))
+    }, sequenceCallback)
+    const result = JSON.parse(response.Payload)
+    finalCallback(null, result)
   }
 
-  invokeLocalFunction (proxyCallback, payload, func, folder, shell) {
-    let command = './node_modules/.bin/sls invoke local -f ' + func + ' -d ' + JSON.stringify(JSON.stringify(payload)) + ' 2>&1'
-    let output = null
-    let invocation = this.spawn(command, [], {
-      stdio: ['inherit', 'pipe', 'pipe'],
+  * invokeLocalFunctionSequence (finalCallback, payload, func, folder, shell, injectedSpawn) {
+    let sequenceCallback = yield
+    const spawn = utilities.valueOrDefault(injectedSpawn, this.spawn)
+    const commandPrefix = utilities.ifTrueElseDefault(shell === 'powershell', 'powershell.exe -Command ', '')
+    const stringifiedPayload = JSON.stringify(payload)
+    const modifiedPayload = utilities.ifTrueElseDefault(shell === 'powershell', stringifiedPayload.replace(/"/g, '\\\\\\"'), stringifiedPayload)
+    const command = `${commandPrefix}./node_modules/.bin/sls invoke local -f ${func} -d '${modifiedPayload}'`
+    let bytes = null
+    let invocation = spawn(command, [], {
+      stdio: 'pipe',
       cwd: folder,
-      shell: shell
-    })
-    invocation.stdout.on('data', (data) => {
-      output = data
+      shell: true
     })
 
-    invocation.on('close', (code) => {
-      this.functionInvocationCallback(null, output, proxyCallback, true)
-    })
-  }
-
-  functionInvocationCallback (err, data, proxyCallback, bytes = false) {
-    try {
-      data = bytes ? data.toString('utf8') : data
-      const result = typeof data === 'string' ? JSON.parse(data.toString('utf8')) || data : data
-      if (this.utilities.isEmpty(err) &&
-        (!this.utilities.isEmpty(result) &&
-          (result.status === true || this.utilities.isEmpty(result.status))
-        )
-      ) {
-        proxyCallback(null, result)
-      } else {
-        proxyCallback(this.utilities.isEmpty(result) ? err : (this.utilities.isEmpty(result.errors) ? result : result.errors))
-      }
-    } catch (error) {
-      proxyCallback(error)
+    let loop = true
+    invocation.stdout.on('data', (data) => sequenceCallback(null, data))
+    invocation.on('close', (code) => sequenceCallback(null, null))
+    while (loop) {
+      loop = yield // Loop through output until process close
+      bytes = utilities.valueOrDefault(loop, bytes) // take latest non empty line of bytes
     }
+    const output = utilities.valueOrDefault(bytes.toString('utf8'), '')
+    const result = JSON.parse(output)
+    finalCallback(null, result)
   }
 
-  getRoleAccess (eventType) {
-    return !this.utilities.isEmpty(this.services.getIn(['environments', this.stage, 'configuration', eventType]))
-      ? this.services.getIn(['environments', this.stage, 'configuration', eventType, 'security'], []) : []
-  }
-
-  extractErrorCodeFromResponse (error, defaultCode = 500) {
-    let statusCode = defaultCode
-    if (!this.utilities.isEmpty(error) && (!this.utilities.isEmpty(error.code) || !this.utilities.isEmpty(error.errors))) {
-      if (!this.utilities.isEmpty(error.code)) {
-        statusCode = error.code
-      } else if (!this.utilities.isEmpty(error.errors.code)) {
-        statusCode = error.errors.code
-      }
-    }
-
-    if (isNaN(statusCode)) {
-      statusCode = defaultCode
-    }
-    return statusCode
-  }
-
-  extractErrorMessageFromResponse (error, defaultMessage = 'Unexpected Error.') {
-    let errorMessage = !this.utilities.isEmpty(error) && (!this.utilities.isEmpty(error.message) || !this.utilities.isEmpty(error.errors))
-      ? error.message || error.errors.message : (typeof error === 'string' ? error : defaultMessage)
+  extractErrorMessageForResponse (injectedError, injectedDefaultMessage, injectedStage) {
+    const error = utilities.valueOrDefault(injectedError, {})
+    const stage = utilities.valueOrDefault(injectedStage, this.stage)
+    const defaultMessage = utilities.valueOrDefault(injectedDefaultMessage, error)
+    let errorMessage = utilities.ifTrueElseDefault(stage === 'development', error.stack, error.message)
+    errorMessage = utilities.valueOrDefault(errorMessage, defaultMessage)
     return errorMessage
   }
 
   extractAuthenticationToken (headers) {
-    return typeof headers !== 'undefined' ? headers.Authorization || null : null
+    const headerData = utilities.valueOrDefault(headers, {})
+    return headerData.Authorization
   }
 
   extractJwt (authorization) {
-    return this.utilities.isEmpty(authorization) ? null : authorization.split(': ')[1]
+    return utilities.isEmpty(authorization) ? null : authorization.split(': ')[1]
   }
 
-  prepareErrorResponse (error) {
-    const code = this.extractErrorCodeFromResponse(error)
-    const message = this.extractErrorMessageFromResponse(error)
-    if (process.env.PROVIDER === 'aws') {
-      this.response.statusCode = code
-    } else {
-      this.response.status = code
-    }
-    this.response.body = JSON.stringify({
+  prepareErrorResponse (error, injectedProvider, injectedResponse) {
+    const provider = utilities.valueOrDefault(injectedProvider, this.provider)
+    let response = utilities.valueOrDefault(injectedResponse, this.response)
+    const message = this.extractErrorMessageForResponse(error)
+    const key = utilities.ifTrueElseDefault(provider === 'aws', 'statusCode', 'status')
+    response[key] = 403
+    response.body = JSON.stringify({
       status: false,
-      errors: {code: code, message: message}
+      errors: {message: message}
     })
-    return this.response
+    return response
   }
 
-  prepareSuccessResponse (data) {
-    if (process.env.PROVIDER === 'aws') {
-      this.response.statusCode = 200
-    } else {
-      this.response.status = 200
-    }
-    this.response.body = JSON.stringify(data)
-    return this.response
+  prepareSuccessResponse (data, injectedProvider, injectedResponse) {
+    const provider = utilities.valueOrDefault(injectedProvider, this.provider)
+    let response = utilities.valueOrDefault(injectedResponse, this.response)
+    const key = utilities.ifTrueElseDefault(provider === 'aws', 'statusCode', 'status')
+    response[key] = 200
+    response.body = JSON.stringify(data)
+    return response
   }
 
   prepareAccessDeniedResponse () {
-    if (process.env.PROVIDER === 'aws') {
-      this.response.statusCode = 403
-    } else {
-      this.response.status = 403
+    this.prepareErrorResponse(new Error('Access denied'))
+  }
+
+  getServiceValue (eventType, stage, value, defaultValue, injectedServices) {
+    const services = utilities.valueOrDefault(injectedServices, this.services)
+    const result = services.getIn(['environments', stage, 'configuration', eventType, value], services.getIn(['environments', stage, value]))
+    return utilities.valueOrDefault(result, defaultValue)
+  }
+
+  validateSuccessStatus (result) {
+    if (result.status === false) {
+      throw new Error(utilities.valueOrDefault(result.error, 'Unknown Error'))
     }
-    this.response.body = JSON.stringify({
-      status: false,
-      errors: {
-        code: 403,
-        message: 'Access denied'
-      }
-    })
-    return this.response
   }
 };
 
