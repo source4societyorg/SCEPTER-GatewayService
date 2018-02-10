@@ -18,7 +18,7 @@ class GatewayService {
     injectedRequest,
     injectedAWS
   ) {
-    const provider = utilities.valueOrDefault(injectedProvider, process.env.provider)
+    const provider = utilities.valueOrDefault(injectedProvider, process.env.PROVIDER)
     const stage = utilities.valueOrDefault(injectedStage, 'development')
     const spawn = utilities.valueOrDefault(injectedSpawn, spawnLib)
     const credentialsPath = utilities.valueOrDefault(injectedCredentialsPath, './credentials.json')
