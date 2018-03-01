@@ -1,6 +1,6 @@
 
 const immutable = require('immutable')
-const utilities = require('@source4society/scepter-utility-lib')
+const serviceUtility = require('@source4society/scepter-service-utility-lib')
 test('Service constructor sets preestablished defaults', () => {
   const GatewayService = require('../service')
   const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
@@ -100,7 +100,7 @@ test('proxyRequestSequence authorizes the requests then proxies it to the approp
   service.authorize = mockAuthorize
   service.proxy = mockProxy
   service.valiateSuccessStatus = mockValidateSuccessStatus
-  utilities.initiateHandledSequence((finalCallback, sequenceCallback) => service.proxyRequestSequence(finalCallback, sequenceCallback), mockFinalCallback)
+  serviceUtility.initiateHandledSequence((finalCallback, sequenceCallback) => service.proxyRequestSequence(finalCallback, sequenceCallback), mockFinalCallback)
 })
 
 test('authorize gets the security for the service and the user credentials then passes them to the validateAuthorization method', () => {
@@ -354,7 +354,7 @@ test('invokeViaAzureHttpSequence makes an http request to azure function and pas
 
   const GatewayService = require('../service')
   const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
-  utilities.initiateSequence(service.invokeViaAzureHttpSequence(mockCallback, mockPayload, mockFunc, mockRequest), mockCallback)
+  serviceUtility.initiateSequence(service.invokeViaAzureHttpSequence(mockCallback, mockPayload, mockFunc, mockRequest), mockCallback)
 })
 
 test('invokeLambdaSequence makes an SDK request to aws lambda and passes result through callback', (done) => {
@@ -395,7 +395,7 @@ test('invokeLambdaSequence makes an SDK request to aws lambda and passes result 
 
   const GatewayService = require('../service')
   const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
-  utilities.initiateSequence(service.invokeLambdaSequence(mockCallback, mockPayload, mockStage, mockFunc, mockServiceName, mockAccount, mockRegion, mockAWS, mockParameters), mockCallback)
+  serviceUtility.initiateSequence(service.invokeLambdaSequence(mockCallback, mockPayload, mockStage, mockFunc, mockServiceName, mockAccount, mockRegion, mockAWS, mockParameters), mockCallback)
 })
 
 test('invokeLocalFunctionSequence uses yarn to call serverless invoke local', (done) => {
@@ -452,8 +452,8 @@ test('invokeLocalFunctionSequence uses yarn to call serverless invoke local', (d
   }
   const GatewayService = require('../service')
   const service = new GatewayService('test', './test/credentials', './test/services', './test/parameters', 'aws')
-  utilities.initiateSequence(service.invokeLocalFunctionSequence(mockCallback, mockPayload, mockFunc, mockFolder, mockShell, mockSpawnNotPowershell), mockCallback)
-  utilities.initiateSequence(service.invokeLocalFunctionSequence(mockCallbackFinal, mockPayload, mockFunc, mockFolder, 'powershell', mockSpawnPowershell), mockCallbackFinal)
+  serviceUtility.initiateSequence(service.invokeLocalFunctionSequence(mockCallback, mockPayload, mockFunc, mockFolder, mockShell, mockSpawnNotPowershell), mockCallback)
+  serviceUtility.initiateSequence(service.invokeLocalFunctionSequence(mockCallbackFinal, mockPayload, mockFunc, mockFolder, 'powershell', mockSpawnPowershell), mockCallbackFinal)
 })
 
 test('extractErrorMessageForResponse should extract the message from error object if it exists', () => {

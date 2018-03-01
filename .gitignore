@@ -1,7 +1,8 @@
 # package directories
 node_modules
 jspm_packages
-coverage
+junit.xml
+/coverage
 yarn-error.log
 request.json
 /credentials.json

@@ -1,6 +1,7 @@
 'use strict'
 const immutable = require('immutable')
 const utilities = require('@source4society/scepter-utility-lib')
+const serviceUtility = require('@source4society/scepter-service-utility-lib')
 const spawnLib = require('child_process').spawn
 const jsonwebtokenLib = require('jsonwebtoken')
 const AWSSDK = require('aws-sdk')
@@ -78,7 +79,7 @@ class GatewayService {
   }
 
   proxyRequest (callback) {
-    utilities.initiateHandledSequence(this.proxyRequestSequence.bind(this), callback)
+    serviceUtility.initiateHandledSequence(this.proxyRequestSequence.bind(this), callback)
   }
 
   * proxyRequestSequence (finalCallback, sequenceCallback) {
@@ -159,15 +160,15 @@ class GatewayService {
     payload.authenticatedUserData = userData
     switch (provider) {
       case 'local':
-        utilities.initiateSequence(this.invokeLocalFunctionSequence(proxyCallback, payload, func, folder, shell), proxyCallback)
+        serviceUtility.initiateSequence(this.invokeLocalFunctionSequence(proxyCallback, payload, func, folder, shell), proxyCallback)
         break
       case 'azure:http':
-        utilities.initiateSequence(this.invokeViaAzureHttpSequence(proxyCallback, payload, func), proxyCallback)
+      serviceUtility.initiateSequence(this.invokeViaAzureHttpSequence(proxyCallback, payload, func), proxyCallback)
         break
       case 'aws:lambda':
         const account = utilities.valueOrDefault(injectedAccount, this.account)
         const region = utilities.valueOrDefault(injectedRegion, this.region)
-        utilities.initiateSequence(this.invokeLambdaSequence(proxyCallback, payload, stage, func, serviceName, account, region), proxyCallback)
+        serviceUtility.initiateSequence(this.invokeLambdaSequence(proxyCallback, payload, stage, func, serviceName, account, region), proxyCallback)
         break
       default:
         proxyCallback(new Error('Invalid provider'))
